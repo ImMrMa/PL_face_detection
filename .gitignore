@@ -110,5 +110,5 @@ ENV/
 # mypy
 .mypy_cache/
 # myself 
-.pth
+#.pth
 

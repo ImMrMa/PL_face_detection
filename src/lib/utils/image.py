@@ -140,6 +140,24 @@ def draw_umich_gaussian(heatmap, center, radius, k=1):
     np.maximum(masked_heatmap, masked_gaussian * k, out=masked_heatmap)
   return heatmap
 
+
+def gen_gauss(length):
+  range_abs=(length-1)/16
+  mean=(length-1)/2
+  std=length/3
+  x = np.arange(0,length)
+  z = np.exp(-(np.maximum((np.abs(x - mean)-range_abs),0)**2)/(2*(std**2)))
+  return z
+
+def draw_ma_gaussian(heatmap,bbox):
+  bbox=(bbox*4).astype(np.int)
+  w=bbox[2]-bbox[0]
+  h=bbox[3]-bbox[1]
+  x=gen_gauss(w)
+  y=gen_gauss(h)
+  z=x.reshape(1,-1)*y.reshape(-1,1)
+  heatmap[bbox[1]:bbox[3],bbox[0]:bbox[2]]=np.maximum(z,heatmap[bbox[1]:bbox[3],bbox[0]:bbox[2]])
+
 def draw_dense_reg(regmap, heatmap, center, value, radius, is_offset=False):
   diameter = 2 * radius + 1
   gaussian = gaussian2D((diameter, diameter), sigma=diameter / 6)
