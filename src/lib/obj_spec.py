@@ -213,7 +213,7 @@ def multi_data():
                                            pic_256=[384, 512]),
                               loader_bses=dict(pic_32=[128, 48, 16, 8],
                                                pic_64=[64, 32, 24, 16],
-                                               pic_128=[24, 16, 8],
+                                               pic_128=[24, 16, 8], 
                                                pic_256=[16, 8]))
 
     def default_collate(batch):
