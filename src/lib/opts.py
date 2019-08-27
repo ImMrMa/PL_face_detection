@@ -134,6 +134,8 @@ class opts(object):
     self.parser.add_argument('--no_color_aug', action='store_true',
                              help='not use the color augmenation '
                                   'from CornerNet')
+    self.parser.add_argument('--multi_res', action='store_true', 
+                             help='multi data input')
     # multi_pose
     self.parser.add_argument('--aug_rot', type=float, default=0, 
                              help='probability of applying '

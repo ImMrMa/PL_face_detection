@@ -131,7 +131,7 @@ class CTDetDataset(data.Dataset):
         gt_det.append([ct[0] - w / 2, ct[1] - h / 2, 
                        ct[0] + w / 2, ct[1] + h / 2, 1, cls_id])
         bboxs[k]=np.array([bbox[0],bbox[1],bbox[2],bbox[3]])
-    ret = {'input': inp, 'clsids': clsids, 'reg_mask': reg_mask, 'ind': ind, 'wh': wh,'bboxs':bboxs,'bg':back_ground,'hm':hm}
+    ret = {'input': inp, 'clsids': clsids, 'reg_mask': reg_mask, 'ind': ind, 'wh': wh,'bboxs':bboxs,'bg':back_ground,'hm':hm,'reg':reg}
 
     if self.opt.dense_wh:
       hm_a = hm.max(axis=0, keepdims=True)
