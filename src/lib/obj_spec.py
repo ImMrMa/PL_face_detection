@@ -11,7 +11,7 @@ def multi_data():
     gen_dataset = get_dataset('pascal', 'ctdet')
 
     class Opts():
-        data_dir = '/home/mayx/project/github/CenterNet/data'
+        data_dir = '../data'
         keep_res = False
         input_h = 512
         input_w = 512
@@ -29,7 +29,7 @@ def multi_data():
         no_color_aug = True
     opt = Opts()
     dataset_pascal = gen_dataset(opt, 'train')
-    objs = torch.load('/home/mayx/project/github/CenterNet/src/lib/objs_2')
+    objs = torch.load('./lib/objs_2')
 
     class PascalDataset(Dataset):
         def __init__(self, dataset, obj_res, pic_res, objs):
@@ -212,9 +212,9 @@ def multi_data():
                                            pic_128=[256, 384, 512],
                                            pic_256=[384, 512]),
                               loader_bses=dict(pic_32=[128, 48, 16, 8],
-                                               pic_64=[128, 64, 32, 16],
-                                               pic_128=[64, 32, 8],
-                                               pic_256=[32, 16]))
+                                               pic_64=[64, 32, 24, 16],
+                                               pic_128=[24, 16, 8],
+                                               pic_256=[16, 8]))
 
     def default_collate(batch):
         return batch[0]

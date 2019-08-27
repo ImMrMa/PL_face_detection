@@ -80,7 +80,7 @@ class DeepLabV3PDect(nn.Module):
         model=model(cfg)
         if pretrained:
             params_new=dict()
-            params=torch.load('/home/mayx/project/github/CenterNet/models/deeplabv3plus_res101_atrous_VOC2012_epoch46_all.pth')
+            params=torch.load('../models/deeplabv3plus_res101_atrous_VOC2012_epoch46_all.pth')
             for k,v in params.items():
                 if 'cls_conv' not in k:
                     params_new[k[7:]]=v

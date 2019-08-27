@@ -69,9 +69,6 @@ class BaseTrainer(object):
                     batch[k] = batch[k].to(
                         device=opt.device, non_blocking=True)
             batch_size = len(batch['input'])
-            print(batch_size)
-            print(batch['res'])
-            input('s')
             output, loss, loss_stats = model_with_loss(batch)
             loss = loss.mean()
             if phase == 'train':
