@@ -36,7 +36,10 @@ def main(opt):
     if opt.load_model != '':
         model, optimizer, start_epoch = load_model(
             model, opt.load_model, optimizer, opt.resume, opt.lr, opt.lr_step)
-
+    for k,v in model.named_parameters():
+        if 'bn' in k:
+            v.requires_grad=False
+        print(k,v.requires_grad)
     Trainer = train_factory[opt.task]
     trainer = Trainer(opt, model, optimizer)
     trainer.set_device(opt.gpus, opt.chunk_sizes, opt.device)

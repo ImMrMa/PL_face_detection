@@ -223,10 +223,10 @@ def multi_data():
                                            pic_64=[128, 192, 256, 384],
                                            pic_128=[256, 384, 512],
                                            pic_256=[384, 512]),
-                              loader_bses=dict(pic_32=[128, 64, 48, 32],
-                                               pic_64=[64, 48, 32,20],
-                                               pic_128=[32, 20, 16], 
-                                               pic_256=[20, 16]))
+                              loader_bses=dict(pic_32=[100, 64, 48, 32],
+                                               pic_64=[64, 48, 32,8],
+                                               pic_128=[32, 12, 8], 
+                                               pic_256=[12, 8]))
     def default_collate(batch):
         return batch[0]
     loader = DataLoader(data, num_workers=10, collate_fn=default_collate)
