@@ -69,12 +69,13 @@ class BaseTrainer(object):
                     batch[k] = batch[k].to(
                         device=opt.device, non_blocking=True)
             batch_size = len(batch['input'])
-            res=int(batch['res'])
+            res=batch['input'].shape[2]
+            # res=int(batch['res'])
             output, loss, loss_stats = model_with_loss(batch)
             loss = loss.mean()
             if phase == 'train':
                 lr = (0.5e-3)*pow(0.5,(epoch-30)/10 if epoch>30 else 0)*(batch_size/64)*(res/256)
-                print(res,batch_size)
+                # print(res,batch_size)
                 for param_group in self.optimizer.param_groups:
                         param_group['lr'] = lr
                 self.optimizer.zero_grad()
