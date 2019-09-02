@@ -215,7 +215,7 @@ def multi_data():
     #                                            pic_64=[64, 32, 16, 12],
     #                                            pic_128=[16, 12, 8], 
     #                                            pic_256=[12, 8]))
-    
+    mother_batch=16
     data = DatasetObjMuiltRes(objs,
                               dataset_pascal,
                               obj_res=[32, 64, 128, 256],
@@ -223,10 +223,10 @@ def multi_data():
                                            pic_64=[128, 192, 256, 384],
                                            pic_128=[256, 384, 512],
                                            pic_256=[384, 512]),
-                              loader_bses=dict(pic_32=[100, 64, 48, 32],
-                                               pic_64=[64, 48, 32,8],
-                                               pic_128=[32, 12, 8], 
-                                               pic_256=[12, 8]))
+                              loader_bses=dict(pic_32=[mother_batch*16, mother_batch*8,mother_batch*6, mother_batch*4],
+                                               pic_64=[mother_batch*8, mother_batch*6, 4*mother_batch,int(mother_batch*3/2)],
+                                               pic_128=[4*mother_batch, int(mother_batch*3/2), mother_batch], 
+                                               pic_256=[int(mother_batch*3/2), mother_batch]))
     def default_collate(batch):
         return batch[0]
     loader = DataLoader(data, num_workers=10, collate_fn=default_collate)
