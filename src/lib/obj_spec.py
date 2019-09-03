@@ -29,7 +29,7 @@ def multi_data():
         no_color_aug = True
     opt = Opts()
     dataset_pascal = gen_dataset(opt, 'train')
-    objs = torch.load('./lib/objs_2')
+    objs = torch.load('../models/objs_2')
 
     class PascalDataset(Dataset):
         def __init__(self, dataset, obj_res, pic_res, objs):
@@ -215,7 +215,7 @@ def multi_data():
     #                                            pic_64=[64, 32, 16, 12],
     #                                            pic_128=[16, 12, 8], 
     #                                            pic_256=[12, 8]))
-    mother_batch=16
+    mother_batch=8
     data = DatasetObjMuiltRes(objs,
                               dataset_pascal,
                               obj_res=[32, 64, 128, 256],
