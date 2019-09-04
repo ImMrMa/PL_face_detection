@@ -86,15 +86,14 @@ class CTDetDataset(data.Dataset):
     trans_output = get_affine_transform(c, s, 0, [output_w, output_h])
     wh = np.zeros((self.max_objs, 2), dtype=np.float32)
     dense_wh = np.zeros((2, output_h, output_w), dtype=np.float32)
-    back_ground=np.ones((inp.shape[1],inp.shape[2]),dtype=np.float32)
     reg = np.zeros((self.max_objs, 2), dtype=np.float32)
     ind = np.zeros((self.max_objs), dtype=np.int64)
     reg_mask = np.zeros((self.max_objs), dtype=np.uint8)
     cat_spec_wh = np.zeros((self.max_objs, num_classes * 2), dtype=np.float32)
     cat_spec_mask = np.zeros((self.max_objs, num_classes * 2), dtype=np.uint8)
     bboxs=np.zeros((self.max_objs,4),dtype=np.float32)
-    clsids=[]
-    
+    draw_gaussian = draw_msra_gaussian if self.opt.mse_loss else \
+                    draw_umich_gaussian
     gt_det = []
     for k in range(num_objs):
       ann = anns[k]
@@ -102,11 +101,6 @@ class CTDetDataset(data.Dataset):
       cls_id = int(self.cat_ids[ann['category_id']])
       if flipped:
         bbox[[0, 2]] = width - bbox[[2, 0]] - 1
-      bbox[:2] = affine_transform(bbox[:2], trans_output)
-      bbox[2:] = affine_transform(bbox[2:], trans_output)
-      back_ground[int(bbox[1]*4):int(4*bbox[3]),int(4*bbox[0]):int(4*bbox[2])]=0
-      bbox[[0, 2]] = np.clip(bbox[[0, 2]], 0, output_w - 1)
-      bbox[[1, 3]] = np.clip(bbox[[1, 3]], 0, output_h - 1)
       h, w = bbox[3] - bbox[1], bbox[2] - bbox[0]
       if h > 0 and w > 0:
         radius = gaussian_radius((math.ceil(h), math.ceil(w)))
@@ -119,19 +113,9 @@ class CTDetDataset(data.Dataset):
           draw_ma_gaussian(hm[cls_id],bbox)
         else:
           draw_gaussian(hm[cls_id], ct_int, radius)
-        clsids.append(cls_id)
-        wh[k] = 1. * w, 1. * h
-        ind[k] = ct_int[1] * output_w + ct_int[0]
-        reg[k] = ct - ct_int
-        reg_mask[k] = 1
-        cat_spec_wh[k, cls_id * 2: cls_id * 2 + 2] = wh[k]
-        cat_spec_mask[k, cls_id * 2: cls_id * 2 + 2] = 1
-        if self.opt.dense_wh:
-          draw_dense_reg(dense_wh, hm.max(axis=0), ct_int, wh[k], radius)
-        gt_det.append([ct[0] - w / 2, ct[1] - h / 2, 
-                       ct[0] + w / 2, ct[1] + h / 2, 1, cls_id])
+
         bboxs[k]=np.array([bbox[0],bbox[1],bbox[2],bbox[3]])
-    ret = {'input': inp, 'clsids': clsids, 'reg_mask': reg_mask, 'ind': ind, 'wh': wh,'bboxs':bboxs,'bg':back_ground,'hm':hm,'reg':reg}
+    ret = {'input': inp, 'wh': wh,'bboxs':bboxs,'hm':hm}
 
     if self.opt.dense_wh:
       hm_a = hm.max(axis=0, keepdims=True)

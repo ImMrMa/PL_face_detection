@@ -11,132 +11,125 @@ def multi_data():
     gen_dataset = get_dataset('pascal', 'ctdet')
 
     class Opts():
-        data_dir = '../data'
-        keep_res = False
-        input_h = 512
-        input_w = 512
-        down_ratio = 4
-        mse_loss = False
-        dense_wh = False
-        cat_spec_wh = False
-        reg_offset = True
-        debug = 0
-        draw_ma_gaussian = True
-        not_rand_crop = True
-        scale = 0
-        shift = 0
-        flip = 0
-        no_color_aug = True
+        data_dir='/home/lishiqi/obj/CenterNet/src/lib/../../data'
+        keep_res=False
+        input_h=512
+        input_w=512
+        down_ratio=4
+        mse_loss=False
+        dense_wh=False
+        cat_spec_wh=False
+        reg_offset=True
+        debug=0
+        draw_ma_gaussian=False
+        not_rand_crop=True
+        scale=0
+        shift=0
+        flip=0
+        no_color_aug=True
     opt = Opts()
     dataset_pascal = gen_dataset(opt, 'train')
     objs = torch.load('../models/objs_2')
 
     class PascalDataset(Dataset):
-        def __init__(self, dataset, obj_res, pic_res, objs):
-            self.objs = objs['objs_'+str(obj_res)]['pics_'+str(pic_res)]
-            self.dataset = dataset
-            self.obj_res = obj_res
-            self.pic_res = pic_res
-            self.avgpool = torch.nn.AvgPool2d(4, 4)
-            self.maxpool = torch.nn.MaxPool2d(4, 4)
-            self.max_objs = 50
-
+        def __init__(self,dataset,obj_res,pic_res,objs):
+            self.objs=objs['objs_'+str(obj_res)]['pics_'+str(pic_res)]
+            self.dataset=dataset
+            self.obj_res=obj_res
+            self.pic_res=pic_res
+            self.avgpool=torch.nn.AvgPool2d(4,4)
+            self.maxpool=torch.nn.MaxPool2d(4,4)
+            self.max_objs=50
         def __len__(self):
             return len(self.objs)
-
         def __getitem__(self, index):
-            dataset = self.dataset
-            objs = self.objs
-            pic_index = objs[index]['pic_index']
-            obj_index = objs[index]['obj_index']
-            obj_pic = dataset[pic_index]
-
-            wh = obj_pic['wh'][obj_index]*4
-            ori_pic = obj_pic['input']
-            bbox = (obj_pic['bboxs'][obj_index]*4).astype(np.int)
-            hms = obj_pic['hm']
-            bbox_crop = self.crop_pic(ori_pic, bbox, wh)
-            batch_dict = self.gen_offset(obj_pic['bboxs'], bbox_crop)
-            crop_pic = ori_pic[:, bbox_crop[1]
-                :bbox_crop[3], bbox_crop[0]:bbox_crop[2]]
-            crop_hm = hms[:, bbox_crop[1]:bbox_crop[3],
-                          bbox_crop[0]:bbox_crop[2]]
-            crop_resize_hm = self.avgpool(torch.Tensor(crop_hm))
-            batch_dict['hm'] = crop_resize_hm
-            batch_dict['input'] = crop_pic
+            dataset=self.dataset
+            objs=self.objs
+            pic_index=objs[index]['pic_index']
+            obj_index=objs[index]['obj_index']
+            obj_pic=dataset[pic_index]
+            
+            wh=obj_pic['wh'][obj_index]
+            ori_pic=obj_pic['input']
+            bbox=(obj_pic['bboxs'][obj_index]).astype(np.int)
+            hms=obj_pic['hm']
+            bbox_crop=self.crop_pic(ori_pic,bbox,wh)
+            batch_dict=self.gen_offset(obj_pic['bboxs'],bbox_crop)
+            crop_pic=ori_pic[:,bbox_crop[1]:bbox_crop[3],bbox_crop[0]:bbox_crop[2]]
+            crop_hm=hms[:,bbox_crop[1]:bbox_crop[3],bbox_crop[0]:bbox_crop[2]]
+            crop_resize_hm=self.avgpool(torch.Tensor(crop_hm))
+            batch_dict['hm']=crop_resize_hm
+            batch_dict['input']=crop_pic
             return batch_dict
-
-        def gen_offset(self, obj_bboxes, bbox):
+        def gen_offset(self,obj_bboxes,bbox_crop):
             reg = np.zeros((self.max_objs, 2), dtype=np.float32)
             ind = np.zeros((self.max_objs), dtype=np.int64)
             reg_mask = np.zeros((self.max_objs), dtype=np.uint8)
-            wh = np.zeros((self.max_objs, 2), dtype=np.float32)
+            wh=np.zeros((self.max_objs,2),dtype=np.float32)
+            
+            bbox_output=bbox_crop/4
+            w=bbox_output[2]-bbox_output[0]
+            h=bbox_output[3]-bbox_output[1]
 
-            bbox_output = bbox/4
-            w = bbox_output[2]-bbox_output[0]
-            h = bbox_output[3]-bbox_output[1]
-
-            for index, obj_bbox in enumerate(obj_bboxes):
-                if obj_bbox[0] >= bbox_output[0] and obj_bbox[1] >= bbox_output[1] and obj_bbox[2] <= bbox_output[2] and obj_bbox[3] <= bbox_output[3]:
-                    obj_bbox_offset = obj_bbox - \
-                        [bbox_output[0], bbox_output[1],
-                            bbox_output[0], bbox_output[1]]
-
-                    ct = np.array([(obj_bbox_offset[0] + obj_bbox_offset[2]) / 2,
-                                   (obj_bbox_offset[1] + obj_bbox_offset[3]) / 2], dtype=np.float32)
-                    ct_int = ct.astype(np.int32)
-                    reg[index] = ct-ct_int
-                    index_ct = ct_int[1]*w+ct_int[0]
-                    wh[index] = [obj_bbox_offset[2]-obj_bbox_offset[0],
-                                 obj_bbox_offset[3]-obj_bbox_offset[1]]
-                    if index < 0 or index >= w*h:
-                        reg_mask[index] = 0
-                        ind[index] = 0
+            for index,obj_bbox in enumerate(obj_bboxes):
+                if obj_bbox[0]>=bbox_crop[0] and obj_bbox[1]>=bbox_crop[1] and obj_bbox[2]<=bbox_crop[2] and obj_bbox[3]<=bbox_crop[3]:
+                    obj_bbox_offset=obj_bbox-[bbox_crop[0],bbox_crop[1],bbox_crop[0],bbox_crop[1]]
+                    ct = np.array([(obj_bbox_offset[0] + obj_bbox_offset[2]) / 2, (obj_bbox_offset[1] + obj_bbox_offset[3]) / 2], dtype=np.float32)
+                    ct=ct/4
+                    ct_int =ct.astype(np.int32)
+                    reg[index]=ct-ct_int
+                    index_ct=ct_int[1]*w+ct_int[0]
+                    wh[index]=[obj_bbox_offset[2]-obj_bbox_offset[0],obj_bbox_offset[3]-obj_bbox_offset[1]]
+                    if index<0 or index>=w*h:
+                        reg_mask[index]=0
+                        ind[index]=0
                     else:
-                        reg_mask[index] = 1
-                        ind[index] = index_ct
-            wh_and_offset = dict(reg=reg, ind=ind, reg_mask=reg_mask, wh=wh)
+                        reg_mask[index]=1
+                        ind[index]=index_ct
+            wh_and_offset=dict(reg=reg,ind=ind,reg_mask=reg_mask,wh=wh)
             return wh_and_offset
-
-        def crop_pic(self, pic, bbox, wh):
-            bbox_crop = np.zeros(4, np.int)
-            ori_w = pic.shape[2]
-            ori_h = pic.shape[1]
-            cut_w, cut_h = self.pic_res, self.pic_res
-            if bbox[1] < ori_h-bbox[3]:
-                max_h, h_l = bbox[1], True
-                min_h = (cut_h+bbox[1])-ori_h
+                    
+        def crop_pic(self,pic,bbox,wh):
+            bbox_crop=np.zeros(4,np.int)
+            ori_w=pic.shape[2]
+            ori_h=pic.shape[1]
+            cut_w,cut_h=self.pic_res,self.pic_res
+            if bbox[1]<ori_h-bbox[3]:
+                max_h,h_l=bbox[1],True
+                min_h=(cut_h+bbox[1])-ori_h
             else:
-                max_h, h_l = (ori_h-bbox[3]), False
-                min_h = cut_h-bbox[3]
-            if bbox[0] < ori_w-bbox[2]:
-                max_w, w_l = bbox[0], True
-                min_w = (cut_w+bbox[0])-ori_w
+                max_h,h_l=(ori_h-bbox[3]),False
+                min_h=cut_h-bbox[3]
+            if bbox[0]<ori_w-bbox[2]:
+                max_w,w_l=bbox[0],True
+                min_w=(cut_w+bbox[0])-ori_w
             else:
-                max_w, w_l = (ori_w-bbox[2]), False
-                min_w = cut_w-bbox[2]
-            max_h = min(max_h, cut_h-wh[1])
-            max_w = min(max_w, cut_w-wh[0])
-            min_h = max(0, min_h)
-            min_w = max(0, min_w)
-
-            rand_h = np.random.randint(min_h, max_h+1)
-            rand_w = np.random.randint(min_w, max_w+1)
+                max_w,w_l=(ori_w-bbox[2]),False
+                min_w=cut_w-bbox[2]
+            max_h=min(max_h,cut_h-wh[1])
+            max_w=min(max_w,cut_w-wh[0])
+            min_h=max(0,min_h)
+            min_w=max(0,min_w)
+            
+            rand_h=np.random.randint(min_h,max_h+1)
+            rand_w=np.random.randint(min_w,max_w+1)
 
             if h_l:
-                bbox_crop[1] = bbox[1]-rand_h
-                bbox_crop[3] = bbox_crop[1]+cut_h
+                bbox_crop[1]=bbox[1]-rand_h
+                bbox_crop[3]=bbox_crop[1]+cut_h
             else:
-                bbox_crop[3] = bbox[3]+rand_h
-                bbox_crop[1] = bbox_crop[3]-cut_h
+                bbox_crop[3]=bbox[3]+rand_h
+                bbox_crop[1]=bbox_crop[3]-cut_h
             if w_l:
-                bbox_crop[0] = bbox[0]-rand_w
-                bbox_crop[2] = bbox_crop[0]+cut_w
+                bbox_crop[0]=bbox[0]-rand_w
+                bbox_crop[2]=bbox_crop[0]+cut_w
             else:
-                bbox_crop[2] = bbox[2]+rand_w
-                bbox_crop[0] = bbox_crop[2]-cut_w
+                bbox_crop[2]=bbox[2]+rand_w
+                bbox_crop[0]=bbox_crop[2]-cut_w
 
             return bbox_crop
+
+
 
     class DatasetObj(Dataset):
         def __init__(self, dataset_obj, dataset, objs, obj_res, pic_res, loader_bses):

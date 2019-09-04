@@ -150,7 +150,7 @@ def gen_gauss(length):
   return z
 
 def draw_ma_gaussian(heatmap,bbox):
-  bbox=(bbox*4).astype(np.int)
+  bbox=(bbox).astype(np.int)
   w=bbox[2]-bbox[0]
   h=bbox[3]-bbox[1]
   x=gen_gauss(w)
