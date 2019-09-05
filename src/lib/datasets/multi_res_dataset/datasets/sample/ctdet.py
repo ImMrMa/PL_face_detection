@@ -83,7 +83,7 @@ class CTDetDataset(data.Dataset):
     output_w = input_w // self.opt.down_ratio
     num_classes = self.num_classes
     hm=np.zeros((num_classes,input_w,input_h),dtype=np.float32)
-    trans_output = get_affine_transform(c, s, 0, [output_w, output_h])
+    trans_input = get_affine_transform(c, s, 0, [input_w, input_h])
     wh = np.zeros((self.max_objs, 2), dtype=np.float32)
     dense_wh = np.zeros((2, output_h, output_w), dtype=np.float32)
     reg = np.zeros((self.max_objs, 2), dtype=np.float32)
@@ -101,6 +101,10 @@ class CTDetDataset(data.Dataset):
       cls_id = int(self.cat_ids[ann['category_id']])
       if flipped:
         bbox[[0, 2]] = width - bbox[[2, 0]] - 1
+      bbox[:2] = affine_transform(bbox[:2], trans_input)
+      bbox[2:] = affine_transform(bbox[2:], trans_input)
+      bbox[[0, 2]] = np.clip(bbox[[0, 2]], 0, input_w - 1)
+      bbox[[1, 3]] = np.clip(bbox[[1, 3]], 0, input_h - 1)
       h, w = bbox[3] - bbox[1], bbox[2] - bbox[0]
       if h > 0 and w > 0:
         radius = gaussian_radius((math.ceil(h), math.ceil(w)))

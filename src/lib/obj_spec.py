@@ -11,7 +11,7 @@ def multi_data():
     gen_dataset = get_dataset('pascal', 'ctdet')
 
     class Opts():
-        data_dir='/home/lishiqi/obj/CenterNet/src/lib/../../data'
+        data_dir='../data'
         keep_res=False
         input_h=512
         input_w=512
@@ -37,7 +37,7 @@ def multi_data():
             self.dataset=dataset
             self.obj_res=obj_res
             self.pic_res=pic_res
-            self.avgpool=torch.nn.AvgPool2d(4,4)
+            self.avgpool=torch.nn.MaxPool2d(4,4)
             self.maxpool=torch.nn.MaxPool2d(4,4)
             self.max_objs=50
         def __len__(self):
@@ -79,7 +79,7 @@ def multi_data():
                     ct_int =ct.astype(np.int32)
                     reg[index]=ct-ct_int
                     index_ct=ct_int[1]*w+ct_int[0]
-                    wh[index]=[obj_bbox_offset[2]-obj_bbox_offset[0],obj_bbox_offset[3]-obj_bbox_offset[1]]
+                    wh[index]=[(obj_bbox_offset[2]-obj_bbox_offset[0])/4,(obj_bbox_offset[3]-obj_bbox_offset[1])/4]
                     if index<0 or index>=w*h:
                         reg_mask[index]=0
                         ind[index]=0
