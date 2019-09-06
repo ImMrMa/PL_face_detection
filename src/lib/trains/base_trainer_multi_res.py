@@ -59,6 +59,7 @@ class BaseTrainer(object):
         num_iters = len(data_loader) if opt.num_iters < 0 else opt.num_iters
         bar = Bar('{}/{}'.format(opt.task, opt.exp_id), max=num_iters)
         end = time.time()
+        count=[]
         for iter_id, batch in enumerate(data_loader):
             if iter_id >= num_iters:
                 break
@@ -74,7 +75,10 @@ class BaseTrainer(object):
             output, loss, loss_stats = model_with_loss(batch)
             loss = loss.mean()
             if phase == 'train':
-                lr = (0.5e-3)*pow(0.5,(epoch-30)/10 if epoch>30 else 0)*(batch_size/64)*(res/256)
+                if batch['res']>=128:
+                    lr = (0.5e-3)*pow(0.5,(epoch-20)/10 if epoch>20 else 0)*(batch['res']/128)
+                else:
+                    lr = (0.5e-3)*pow(0.5,(epoch-20)/10 if epoch>20 else 0)*((batch['res']/64)**2)/2
                 # print(res,batch_size)
                 for param_group in self.optimizer.param_groups:
                         param_group['lr'] = lr
@@ -84,16 +88,22 @@ class BaseTrainer(object):
             batch_time.update(time.time() - end)
             end = time.time()
 
-            Bar.suffix = '{phase}: [{0}][{1}/{2}]|Tot: {total:} |ETA: {eta:} '.format(
+            Bar.suffix = '{phase}: [{0}][{1}/{2}]|Tot: {total:} |ETA: {eta:} |'.format(
                 epoch, iter_id, num_iters, phase=phase,
                 total=bar.elapsed_td, eta=bar.eta_td)
             for l in avg_loss_stats:
                 avg_loss_stats[l].update(
                     loss_stats[l].mean().item(), batch['input'].size(0))
-                Bar.suffix = Bar.suffix + \
-                    '|{} {:.4f} '.format(l, avg_loss_stats[l].avg)
+                Bar.suffix = Bar.suffix + '{} {:.2f} '.format(l[:1], avg_loss_stats[l].avg)
+            Bar.suffix =Bar.suffix+'|'
+            if phase == 'train':
+                for l in avg_loss_stats:
+                    Bar.suffix = Bar.suffix + '{} {:.2f} '.format(l[:1], avg_loss_stats[l].val)
+                Bar.suffix = Bar.suffix +'| B:'+str(batch['input'].size(0))+' O'+str(batch['res'])+' P'+str(res)+' LR:{:e}'.format(lr)
+                count.append(Bar.suffix)
+
             if not opt.hide_data_time:
-                Bar.suffix = Bar.suffix + '|Data {dt.val:.3f}s({dt.avg:.3f}s) ' \
+                Bar.suffix = Bar.suffix + ' |Data {dt.val:.3f}s({dt.avg:.3f}s) ' \
                     '|Net {bt.avg:.3f}s'.format(dt=data_time, bt=batch_time)
             if opt.print_iter > 0:
                 if iter_id % opt.print_iter == 0:
@@ -107,7 +117,8 @@ class BaseTrainer(object):
             if opt.test:
                 self.save_result(output, batch, results)
             del output, loss, loss_stats
-
+        if phase == 'train':
+            torch.save(count,'count.pth')
         bar.finish()
         ret = {k: v.avg for k, v in avg_loss_stats.items()}
         ret['time'] = bar.elapsed_td.total_seconds() / 60.

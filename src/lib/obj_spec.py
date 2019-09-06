@@ -72,6 +72,8 @@ def multi_data():
             h=bbox_output[3]-bbox_output[1]
 
             for index,obj_bbox in enumerate(obj_bboxes):
+                if (obj_bbox==0).all():
+                    break
                 if obj_bbox[0]>=bbox_crop[0] and obj_bbox[1]>=bbox_crop[1] and obj_bbox[2]<=bbox_crop[2] and obj_bbox[3]<=bbox_crop[3]:
                     obj_bbox_offset=obj_bbox-[bbox_crop[0],bbox_crop[1],bbox_crop[0],bbox_crop[1]]
                     ct = np.array([(obj_bbox_offset[0] + obj_bbox_offset[2]) / 2, (obj_bbox_offset[1] + obj_bbox_offset[3]) / 2], dtype=np.float32)
@@ -208,7 +210,7 @@ def multi_data():
     #                                            pic_64=[64, 32, 16, 12],
     #                                            pic_128=[16, 12, 8], 
     #                                            pic_256=[12, 8]))
-    mother_batch=8
+    mother_batch=55
     data = DatasetObjMuiltRes(objs,
                               dataset_pascal,
                               obj_res=[32, 64, 128, 256],
@@ -216,10 +218,10 @@ def multi_data():
                                            pic_64=[128, 192, 256, 384],
                                            pic_128=[256, 384, 512],
                                            pic_256=[384, 512]),
-                              loader_bses=dict(pic_32=[mother_batch*16, mother_batch*8,mother_batch*6, mother_batch*4],
-                                               pic_64=[mother_batch*8, mother_batch*6, 4*mother_batch,int(mother_batch*3/2)],
-                                               pic_128=[4*mother_batch, int(mother_batch*3/2), mother_batch], 
-                                               pic_256=[int(mother_batch*3/2), mother_batch]))
+                              loader_bses=dict(pic_32=[mother_batch*2, mother_batch*2,mother_batch*2, mother_batch*2],
+                                               pic_64=[mother_batch*2, mother_batch*2, mother_batch*2,mother_batch*2],
+                                               pic_128=[mother_batch*2, mother_batch*2, mother_batch], 
+                                               pic_256=[mother_batch*2, mother_batch]))
     def default_collate(batch):
         return batch[0]
     loader = DataLoader(data, num_workers=10, collate_fn=default_collate)
