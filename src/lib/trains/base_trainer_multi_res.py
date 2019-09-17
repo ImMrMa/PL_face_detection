@@ -69,19 +69,21 @@ class BaseTrainer(object):
                 if k != 'meta' and k != 'res':
                     batch[k] = batch[k].to(
                         device=opt.device, non_blocking=True)
-            batch_size = len(batch['input'])
-            res=batch['input'].shape[2]
+
             # res=int(batch['res'])
             output, loss, loss_stats = model_with_loss(batch)
             loss = loss.mean()
             if phase == 'train':
-                if batch['res']>=128:
-                    lr = (0.5e-3)*pow(0.5,(epoch-20)/10 if epoch>20 else 0)*(batch['res']/128)
-                else:
-                    lr = (0.5e-3)*pow(0.5,(epoch-20)/10 if epoch>20 else 0)*((batch['res']/64)**2)/2
-                # print(res,batch_size)
-                for param_group in self.optimizer.param_groups:
-                        param_group['lr'] = lr
+                if opt.multi_res:
+                    batch_size = len(batch['input'])
+                    res=batch['input'].shape[2]
+                    if batch['res']>=128:
+                        lr = (0.5e-3)*pow(0.5,(epoch-20)/10 if epoch>20 else 0)*(batch['res']/128)
+                    else:
+                        lr = (0.5e-3)*pow(0.5,(epoch-20)/10 if epoch>20 else 0)*((batch['res']/64)**2)/2
+                    # print(res,batch_size)
+                    for param_group in self.optimizer.param_groups:
+                            param_group['lr'] = lr
                 self.optimizer.zero_grad()
                 loss.backward()
                 self.optimizer.step()
@@ -96,7 +98,7 @@ class BaseTrainer(object):
                     loss_stats[l].mean().item(), batch['input'].size(0))
                 Bar.suffix = Bar.suffix + '{} {:.2f} '.format(l[:1], avg_loss_stats[l].avg)
             Bar.suffix =Bar.suffix+'|'
-            if phase == 'train':
+            if phase == 'train' and opt.multi_res:
                 for l in avg_loss_stats:
                     Bar.suffix = Bar.suffix + '{} {:.2f} '.format(l[:1], avg_loss_stats[l].val)
                 Bar.suffix = Bar.suffix +'| B:'+str(batch['input'].size(0))+' O'+str(batch['res'])+' P'+str(res)+' LR:{:e}'.format(lr)
@@ -117,7 +119,7 @@ class BaseTrainer(object):
             if opt.test:
                 self.save_result(output, batch, results)
             del output, loss, loss_stats
-        if phase == 'train':
+        if phase == 'train' and opt.multi_res:
             torch.save(count,'count.pth')
         bar.finish()
         ret = {k: v.avg for k, v in avg_loss_stats.items()}

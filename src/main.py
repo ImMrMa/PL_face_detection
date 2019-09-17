@@ -40,6 +40,8 @@ def main(opt):
         if 'bn' in k:
             v.requires_grad=False
         print(k,v.requires_grad)
+    params=torch.load('/home/mayx/project/github/CenterNet/exp/ctdet/pascal_resnet18_rgb/model_best.pth',map_location='cpu')['state_dict']
+    model.load_state_dict(params)
     Trainer = train_factory[opt.task]
     trainer = Trainer(opt, model, optimizer)
     trainer.set_device(opt.gpus, opt.chunk_sizes, opt.device)

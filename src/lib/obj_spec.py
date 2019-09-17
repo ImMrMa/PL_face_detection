@@ -72,8 +72,6 @@ def multi_data():
             h=bbox_output[3]-bbox_output[1]
 
             for index,obj_bbox in enumerate(obj_bboxes):
-                if (obj_bbox==0).all():
-                    break
                 if obj_bbox[0]>=bbox_crop[0] and obj_bbox[1]>=bbox_crop[1] and obj_bbox[2]<=bbox_crop[2] and obj_bbox[3]<=bbox_crop[3]:
                     obj_bbox_offset=obj_bbox-[bbox_crop[0],bbox_crop[1],bbox_crop[0],bbox_crop[1]]
                     ct = np.array([(obj_bbox_offset[0] + obj_bbox_offset[2]) / 2, (obj_bbox_offset[1] + obj_bbox_offset[3]) / 2], dtype=np.float32)
@@ -96,40 +94,32 @@ def multi_data():
             ori_w=pic.shape[2]
             ori_h=pic.shape[1]
             cut_w,cut_h=self.pic_res,self.pic_res
-            if bbox[1]<ori_h-bbox[3]:
-                max_h,h_l=bbox[1],True
-                min_h=(cut_h+bbox[1])-ori_h
+            crop_3_h=min(ori_h,bbox[1]+cut_h)
+            crop_3_l=max(bbox[3],cut_h)
+            if crop_3_l>=crop_3_h:
+                crop_3=crop_3_h
             else:
-                max_h,h_l=(ori_h-bbox[3]),False
-                min_h=cut_h-bbox[3]
-            if bbox[0]<ori_w-bbox[2]:
-                max_w,w_l=bbox[0],True
-                min_w=(cut_w+bbox[0])-ori_w
+                try:
+                    crop_3=np.random.randint(crop_3_l,crop_3_h)
+                except:
+                    print(bbox,cut_w,cut_h,crop_3_l,crop_3_h)
+            bbox_crop[3]=crop_3
+            bbox_crop[1]=crop_3-cut_h
+            crop_2_h=min(ori_w,bbox[0]+cut_w)
+            crop_2_l=max(bbox[2],cut_w)
+            if crop_2_l>=crop_2_h:
+                crop_2=crop_2_h
             else:
-                max_w,w_l=(ori_w-bbox[2]),False
-                min_w=cut_w-bbox[2]
-            max_h=min(max_h,cut_h-wh[1])
-            max_w=min(max_w,cut_w-wh[0])
-            min_h=max(0,min_h)
-            min_w=max(0,min_w)
-            
-            rand_h=np.random.randint(min_h,max_h+1)
-            rand_w=np.random.randint(min_w,max_w+1)
-
-            if h_l:
-                bbox_crop[1]=bbox[1]-rand_h
-                bbox_crop[3]=bbox_crop[1]+cut_h
-            else:
-                bbox_crop[3]=bbox[3]+rand_h
-                bbox_crop[1]=bbox_crop[3]-cut_h
-            if w_l:
-                bbox_crop[0]=bbox[0]-rand_w
-                bbox_crop[2]=bbox_crop[0]+cut_w
-            else:
-                bbox_crop[2]=bbox[2]+rand_w
-                bbox_crop[0]=bbox_crop[2]-cut_w
+                try:
+                    crop_2=np.random.randint(crop_2_l,crop_2_h)
+                except:
+                    print(bbox,cut_w,cut_h,crop_2_l,crop_2_h)
+            bbox_crop[2]=crop_2
+            bbox_crop[0]=crop_2-cut_w
 
             return bbox_crop
+
+
 
 
 
@@ -210,7 +200,7 @@ def multi_data():
     #                                            pic_64=[64, 32, 16, 12],
     #                                            pic_128=[16, 12, 8], 
     #                                            pic_256=[12, 8]))
-    mother_batch=55
+    mother_batch=48
     data = DatasetObjMuiltRes(objs,
                               dataset_pascal,
                               obj_res=[32, 64, 128, 256],
@@ -224,5 +214,5 @@ def multi_data():
                                                pic_256=[mother_batch*2, mother_batch]))
     def default_collate(batch):
         return batch[0]
-    loader = DataLoader(data, num_workers=10, collate_fn=default_collate)
+    loader = DataLoader(data, num_workers=20, collate_fn=default_collate)
     return loader
