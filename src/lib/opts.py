@@ -168,6 +168,9 @@ class opts(object):
                              help='loss weight for human pose offset.')
     self.parser.add_argument('--hm_hp_weight', type=float, default=1,
                              help='loss weight for human keypoint heatmap.')
+    self.parser.add_argument('--inter_bound', action='store_true',
+                             help='use inter_bound heatmaps.')
+
     # ddd
     self.parser.add_argument('--dep_weight', type=float, default=1,
                              help='loss weight for depth.')
@@ -316,8 +319,9 @@ class opts(object):
         opt.heads.update({'reg': 2})
     elif opt.task == 'ctdet':
       # assert opt.dataset in ['pascal', 'coco']
+
       opt.heads = {'hm': opt.num_classes,
-                   'wh': 2 if not opt.cat_spec_wh else 2 * opt.num_classes}
+                   'wh': opt.num_classes if opt.inter_bound else 2 if not opt.cat_spec_wh else 2*opt.num_classes}
       if opt.reg_offset:
         opt.heads.update({'reg': 2})
     elif opt.task == 'multi_pose':

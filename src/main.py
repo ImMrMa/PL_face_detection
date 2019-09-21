@@ -36,12 +36,12 @@ def main(opt):
     if opt.load_model != '':
         model, optimizer, start_epoch = load_model(
             model, opt.load_model, optimizer, opt.resume, opt.lr, opt.lr_step)
-    for k,v in model.named_parameters():
-        if 'bn' in k:
-            v.requires_grad=False
-        print(k,v.requires_grad)
-    params=torch.load('/home/mayx/project/github/CenterNet/exp/ctdet/pascal_resnet18_rgb/model_best.pth',map_location='cpu')['state_dict']
-    model.load_state_dict(params)
+    # for k,v in model.named_parameters():
+    #     if 'bn' in k:
+    #         v.requires_grad=False
+    #     print(k,v.requires_grad)
+    # params=torch.load('/home/mayx/project/github/CenterNet/exp/ctdet/pascal_resnet18_rgb_ori_20/model_best.pth',map_location='cpu')['state_dict']
+    # model.load_state_dict(params)
     Trainer = train_factory[opt.task]
     trainer = Trainer(opt, model, optimizer)
     trainer.set_device(opt.gpus, opt.chunk_sizes, opt.device)
@@ -60,7 +60,8 @@ def main(opt):
         val_loader.dataset.run_eval(preds, opt.save_dir)
         return
     if opt.multi_res:
-      train_loader=multi_data()
+        print('yes')
+        train_loader=multi_data()
     else:
         train_loader = torch.utils.data.DataLoader(
             Dataset(opt, 'train'),
@@ -70,7 +71,6 @@ def main(opt):
             pin_memory=True,
             drop_last=True
         )
-
     print('Starting training...')
     best = 1e10
     for epoch in range(start_epoch + 1, opt.num_epochs + 1):

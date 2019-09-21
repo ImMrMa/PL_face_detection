@@ -140,7 +140,47 @@ def draw_umich_gaussian(heatmap, center, radius, k=1):
     np.maximum(masked_heatmap, masked_gaussian * k, out=masked_heatmap)
   return heatmap
 
+# def gen_quard(heatmap_inter,heatmap_bound,bbox):
+#     center_x=(bbox[2]+bbox[0])/2
+#     center_y=(bbox[3]+bbox[1])/2
+#     w=bbox[2]-bbox[0]
+#     h=bbox[3]-bbox[1]
+#     bbox_int=bbox.astype(np.int)
+#     w_line=np.arange(bbox_int[0],bbox_int[2])
+#     h_line=np.arange(bbox_int[1],bbox_int[3])
+#     w_line_r=((w_line-center_x)/(w/2))**2
+#     h_line_r=((h_line-center_y)/(h/2))**2
+#     z=(w_line_r.reshape(1,-1)+h_line_r.reshape(-1,1))
+#     inter_quard=(-z/2+1.21)/1.21
+#     boundary_quard=abs(np.sqrt(z)-0.9)
+#     boundary_quard[boundary_quard>0.5]=0.5
+#     boundary_quard=(1-boundary_quard/0.5)
+#     heatmap_inter[bbox_int[1]:bbox_int[3],bbox_int[0]:bbox_int[2]]=np.maximum(inter_quard,heatmap_inter[bbox_int[1]:bbox_int[3],bbox_int[0]:bbox_int[2]])
+#     heatmap_bound[bbox_int[1]:bbox_int[3],bbox_int[0]:bbox_int[2]]=np.maximum(boundary_quard,heatmap_bound[bbox_int[1]:bbox_int[3],bbox_int[0]:bbox_int[2]])
+def gen_quard(heatmap_inter,heatmap_bound,bbox):
+    center_x=(bbox[2]+bbox[0])/2
+    center_y=(bbox[3]+bbox[1])/2
+    w=bbox[2]-bbox[0]
+    h=bbox[3]-bbox[1]
+    bbox_int=bbox.astype(np.int)
+    w_line=np.arange(bbox_int[0],bbox_int[2])
+    h_line=np.arange(bbox_int[1],bbox_int[3])
 
+    w_line_r=((w_line-center_x)/(w/2))**2
+
+    h_line_r=((h_line-center_y)/(h/2))**2
+    z=(w_line_r.reshape(1,-1)+h_line_r.reshape(-1,1))
+
+    inter_quard=(-z+1)/0.96
+    inter_quard[z<=0.04]=1
+    inter_quard[z>1]=0
+    boundary_quard=abs(np.sqrt(z)-0.9)
+    boundary_quard[boundary_quard>0.5]=0.5
+    boundary_quard=(1-boundary_quard/0.5)
+    mask=(z>=0.81)*(z<=1)
+    boundary_quard[mask==1]=1
+    heatmap_inter[bbox_int[1]:bbox_int[3],bbox_int[0]:bbox_int[2]]=np.maximum(inter_quard,heatmap_inter[bbox_int[1]:bbox_int[3],bbox_int[0]:bbox_int[2]])
+    heatmap_bound[bbox_int[1]:bbox_int[3],bbox_int[0]:bbox_int[2]]=np.maximum(boundary_quard,heatmap_bound[bbox_int[1]:bbox_int[3],bbox_int[0]:bbox_int[2]])
 def gen_gauss(length):
   range_abs=(length-1)/16
   mean=(length-1)/2

@@ -11,7 +11,7 @@ import os
 from PIL import Image
 from utils.image import flip, color_aug
 from utils.image import get_affine_transform, affine_transform
-from utils.image import gaussian_radius, draw_umich_gaussian, draw_msra_gaussian
+from utils.image import gaussian_radius, draw_umich_gaussian, draw_msra_gaussian,gen_quard
 from utils.image import draw_dense_reg
 import math
 
@@ -90,8 +90,11 @@ class CTDetDataset(data.Dataset):
         output_w = input_w // self.opt.down_ratio
         num_classes = self.num_classes
         trans_output = get_affine_transform(c, s, 0, [output_w, output_h])
-
-        hm = np.zeros((num_classes, output_h, output_w), dtype=np.float32)
+        if self.opt.inter_bound:
+            hm_inter = np.zeros((num_classes, output_h, output_w), dtype=np.float32)
+            hm_bound=np.zeros((num_classes, output_h, output_w), dtype=np.float32)
+        else:
+            hm=np.zeros((num_classes, output_h, output_w), dtype=np.float32)
         wh = np.zeros((self.max_objs, 2), dtype=np.float32)
         dense_wh = np.zeros((2, output_h, output_w), dtype=np.float32)
         reg = np.zeros((self.max_objs, 2), dtype=np.float32)
@@ -120,11 +123,13 @@ class CTDetDataset(data.Dataset):
             if h > 0 and w > 0:
                 radius = gaussian_radius((math.ceil(h), math.ceil(w)))
                 radius = max(0, int(radius))
-                radius = self.opt.hm_gauss if self.opt.mse_loss else radius
                 ct = np.array(
                     [(bbox[0] + bbox[2]) / 2, (bbox[1] + bbox[3]) / 2], dtype=np.float32)
                 ct_int = ct.astype(np.int32)
-                draw_gaussian(hm[cls_id], ct_int, radius)
+                if self.opt.inter_bound:
+                    gen_quard(hm_inter[cls_id], hm_bound[cls_id], bbox)
+                else:
+                    draw_gaussian(hm[cls_id],ct_int,radius)
                 wh[k] = 1. * w, 1. * h
                 ind[k] = ct_int[1] * output_w + ct_int[0]
                 reg[k] = ct - ct_int
@@ -136,9 +141,12 @@ class CTDetDataset(data.Dataset):
                         axis=0), ct_int, wh[k], radius)
                 gt_det.append([ct[0] - w / 2, ct[1] - h / 2,
                                ct[0] + w / 2, ct[1] + h / 2, 1, cls_id])
-
-        ret = {'input': inp, 'hm': hm,
-               'reg_mask': reg_mask, 'ind': ind, 'wh': wh}
+        if self.opt.inter_bound:
+            ret = {'input': inp, 'hm_inter': hm_inter,'hm_bound': hm_bound,
+                'reg_mask': reg_mask, 'ind': ind, 'wh': wh}
+        else:
+            ret = {'input': inp, 'hm': hm,
+                'reg_mask': reg_mask, 'ind': ind, 'wh': wh}
         if self.opt.dense_wh:
             hm_a = hm.max(axis=0, keepdims=True)
             dense_wh_mask = np.concatenate([hm_a, hm_a], axis=0)

@@ -214,5 +214,5 @@ def multi_data():
                                                pic_256=[mother_batch*2, mother_batch]))
     def default_collate(batch):
         return batch[0]
-    loader = DataLoader(data, num_workers=20, collate_fn=default_collate)
+    loader = DataLoader(data, num_workers=16, collate_fn=default_collate)
     return loader
