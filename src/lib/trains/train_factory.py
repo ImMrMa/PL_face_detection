@@ -6,8 +6,10 @@ from .ctdet import CtdetTrainer
 from .ddd import DddTrainer
 from .exdet import ExdetTrainer
 from .multi_pose import MultiPoseTrainer
+from .fadet import FadetTrainer
 
 train_factory = {
+  'fadet':FadetTrainer,
   'exdet': ExdetTrainer, 
   'ddd': DddTrainer,
   'ctdet': CtdetTrainer,

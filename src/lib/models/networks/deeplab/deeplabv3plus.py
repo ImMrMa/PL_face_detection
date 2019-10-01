@@ -131,7 +131,7 @@ def get_deeplabv3plus(pretrain=True):
         model_shortcut_dim=48
         model_shortcut_kernel=1
         model_num_classes=20
-        model_backbone='res101_atrous'
+        model_backbone='xception'
     cfg=Config()
     heads = {'hm': 20,'wh': 2,'reg': 2 }
 

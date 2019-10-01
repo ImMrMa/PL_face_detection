@@ -15,7 +15,7 @@ from logger import Logger
 from datasets.dataset_factory import get_dataset
 from trains.train_factory import train_factory
 from obj_spec import multi_data
-
+from utils.widerface import WIDERDetection, detection_collate
 
 def main(opt):
     torch.manual_seed(opt.seed)
@@ -31,6 +31,8 @@ def main(opt):
 
     print('Creating model...')
     model = create_model(opt.arch, opt.heads, opt.head_conv)
+    for k,v in model.named_parameters():
+        print(k,v.requires_grad)
     optimizer = torch.optim.Adam(model.parameters(), opt.lr)
     start_epoch = 0
     if opt.load_model != '':
@@ -47,6 +49,7 @@ def main(opt):
     trainer.set_device(opt.gpus, opt.chunk_sizes, opt.device)
 
     print('Setting up data...')
+
     val_loader = torch.utils.data.DataLoader(
         Dataset(opt, 'val'),
         batch_size=1,
