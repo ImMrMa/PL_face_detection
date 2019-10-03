@@ -557,12 +557,13 @@ class HighResolutionNet(nn.Module):
             pretrained_dict = {k: v for k, v in pretrained_dict.items()
                                if k in model_dict.keys()}           
             for k,v in self.named_parameters():
-                if 'stage4' in k:
-                    break
-                v.requires_grad=False 
-            for k,v in self.named_parameters():
-                if 'bn' in k:
-                    v.requires_grad=False
+                if 'wh' in k or 'reg' in k or 'hm' in k:
+                    v.requires_grad=True
+                else:
+                    v.requires_grad=False 
+            # for k,v in self.named_parameters():
+            #     if 'bn' in k:
+            #         v.requires_grad=False
             
             # for k,v in pretrained_dict.items():
             #     print(k)
@@ -610,7 +611,7 @@ def get_hr_net(**kwargs):
                STAGE2=stage2,
                STAGE3=stage3,
                STAGE4=stage4,
-               pretrained='../models/hrnet_w18_small_model_v2.pth')
+               pretrained='../models/model_best.pth'')
     model = HighResolutionNet(cfg, **kwargs)
     model.init_weights(cfg['pretrained'])
 
