@@ -401,7 +401,7 @@ class HighResolutionNet(nn.Module):
                     padding=padding,
                     output_padding=output_padding,
                     bias=False))
-            layers.append(nn.GroupNorm(32,planes))
+            layers.append(nn.GroupNorm(planes//16,planes))
             layers.append(nn.ReLU(inplace=True))
             self.inplanes = planes
 
