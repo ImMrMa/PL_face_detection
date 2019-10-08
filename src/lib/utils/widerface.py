@@ -62,31 +62,45 @@ class WIDERDetection(data.Dataset):
         img, target, h, w = self.pull_item(index)
         ret=self.transform(img,target)
         return ret
+    def gen_labels(self,h,w,bbox_index,hm,wh,offset,mask,stride):
+        rf_sizes=[32,64,128,256]
+        index=stride-1
+        wh=wh[index]
+        mask=mask[index]
+        draw_gaussian =draw_umich_gaussian
+        radius=math.sqrt(((math.ceil(h)*math.ceil(w))/6.28))
+        # radius = gaussian_radius((math.ceil(h), math.ceil(w)))
+        radius = max(0, math.ceil(radius))
+        ct=np.array([(bbox_index[0]+bbox_index[2])/2,(bbox_index[1]+bbox_index[3])/2])
+        ct_int = ct.astype(np.int32)
+        draw_gaussian(hm[1],ct_int,radius)
+        wh[0][ct_int[1],ct_int[0]]=w/rf_sizes[index]
+        wh[1][ct_int[1],ct_int[0]]=h/rf_sizes[index]
+        offset[0][ct_int[1],ct_int[0]]=ct[0]-ct_int[0]
+        offset[1][ct_int[1],ct_int[0]]=ct[1]-ct_int[1]
+        mask[ct_int[1],ct_int[0]]=1
     def transform(self,img,target):
+
         output_h=img.shape[1]
         output_w=img.shape[2]
-        draw_gaussian =draw_umich_gaussian
+        
         hm=np.zeros((2, output_h, output_w), dtype=np.float32)
-        wh=np.zeros((2, output_h, output_w), dtype=np.float32)
         offset=np.zeros((2, output_h, output_w), dtype=np.float32)
-        mask=np.zeros((1,output_h, output_w),dtype=np.float32)
+        wh=np.zeros((4,2, output_h, output_w), dtype=np.float32)
+        mask=np.zeros((4,output_h, output_w),dtype=np.float32)
         for bbox in target:
             bbox_index=bbox*img.shape[1]
             w,h=(bbox_index[2]-bbox_index[0]),(bbox_index[3]-bbox_index[1])
-            radius=math.sqrt(((math.ceil(h)*math.ceil(w))/6.28))
-            # radius = gaussian_radius((math.ceil(h), math.ceil(w)))
-            radius = max(0, math.ceil(radius))
-            ct=np.array([(bbox_index[0]+bbox_index[2])/2,(bbox_index[1]+bbox_index[3])/2])
-            ct_int = ct.astype(np.int32)
-            draw_gaussian(hm[1],ct_int,radius)
-            wh[0][ct_int[1],ct_int[0]]=w
-            wh[1][ct_int[1],ct_int[0]]=h
-            offset[0][ct_int[1],ct_int[0]]=ct[0]-ct_int[0]
-            offset[1][ct_int[1],ct_int[0]]=ct[1]-ct_int[1]
-            mask[0][ct_int[1],ct_int[0]]=1
-
+            if (w+h)/2<=32:
+                self.gen_labels(h,w,bbox_index,hm,wh,offset,mask,1)
+            elif (w+h)/2<=64:
+                self.gen_labels(h,w,bbox_index,hm,wh,offset,mask,2)
+            elif (w+h)/2<=128:
+                self.gen_labels(h,w,bbox_index,hm,wh,offset,mask,3)
+            else:
+                self.gen_labels(h,w,bbox_index,hm,wh,offset,mask,4)
         ret = {'input': img, 'hm': hm,'wh': wh,
-            'mask': mask, 'offset': offset,}
+            'mask': mask, 'offset': offset}
         return ret
     def pull_item(self, index):
         while True:

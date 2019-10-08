@@ -344,24 +344,29 @@ class HighResolutionNet(nn.Module):
                       stride=1,
                       padding=1)
         )
+
         for head in sorted(self.heads):
-          num_output = self.heads[head]
-          if head_conv > 0:
-            fc = nn.Sequential(
-                nn.Conv2d(64, head_conv,
-                  kernel_size=3, padding=1, bias=True),
-                nn.ReLU(inplace=True),
-                nn.Conv2d(head_conv, num_output, 
-                  kernel_size=1, stride=1, padding=0))
-          else:
-            fc = nn.Conv2d(
-              in_channels=64,
-              out_channels=num_output,
-              kernel_size=1,
-              stride=1,
-              padding=0
-          )
-          self.__setattr__(head, fc)
+            bias=True
+            num_output = self.heads[head]
+            if head_conv > 0:
+                
+                if head =='hm' or head=='reg':
+                    fcs=(nn.Sequential(
+                            nn.Conv2d(64, head_conv,
+                            kernel_size=3, padding=1, bias=bias),
+                            nn.ReLU(inplace=True),
+                            nn.Conv2d(head_conv, num_output, 
+                            kernel_size=1, stride=1, padding=0,bias=bias)))
+                else:
+                    fcs = nn.ModuleList()
+                    for i in range(1,5):
+                            fcs.append(nn.Sequential(
+                                nn.Conv2d(64, head_conv,
+                                kernel_size=3, padding=i, dilation=i,bias=bias),
+                                nn.ReLU(inplace=True),
+                                nn.Conv2d(head_conv, num_output, 
+                                kernel_size=1, stride=1, padding=0,bias=bias)))
+            self.__setattr__(head, fcs)
         self.inplanes=256
         self.deconv_layers = self._make_deconv_layer(
             2,
@@ -530,16 +535,21 @@ class HighResolutionNet(nn.Module):
 
         # Upsampling
         x0_h, x0_w = x[0].size(2), x[0].size(3)
-        x1 = F.upsample(x[1], size=(x0_h, x0_w), mode='bilinear')
-        x2 = F.upsample(x[2], size=(x0_h, x0_w), mode='bilinear')
-        x3 = F.upsample(x[3], size=(x0_h, x0_w), mode='bilinear')
-
+        x1 = F.interpolate(x[1], size=(x0_h, x0_w), mode='bilinear')
+        x2 = F.interpolate(x[2], size=(x0_h, x0_w), mode='bilinear')
+        x3 = F.interpolate(x[3], size=(x0_h, x0_w), mode='bilinear')
         x = torch.cat([x[0], x1, x2, x3], 1)
-        x = self.last_layer(x)
-        x = self.deconv_layers(x)
+        x_last = self.last_layer(x)
+        x = self.deconv_layers(x_last)
         ret = {}
         for head in self.heads:
-            ret[head] = self.__getattr__(head)(x)
+            if head=='hm' or head=='reg':
+                ret[head]=self.__getattr__(head)(x)
+            else:
+                ret[head]=[]
+                for i in range(4):
+                    ret[head].append(self.__getattr__(head)[i](x).unsqueeze(1))
+                ret[head]=torch.cat(ret[head],1)
         return [ret]
 
     def init_weights(self, pretrained='',):
@@ -552,19 +562,27 @@ class HighResolutionNet(nn.Module):
                 nn.init.constant_(m.bias, 0)
         if os.path.isfile(pretrained):
             pretrained_dict = torch.load(pretrained)
+            # self.load_state_dict(pretrained_dict)
             logger.info('=> loading pretrained model {}'.format(pretrained))
             model_dict = self.state_dict()
             pretrained_dict = {k: v for k, v in pretrained_dict.items()
-                               if k in model_dict.keys()}           
+                               if k in model_dict.keys()}       
+            for k in pretrained_dict.keys():
+                print(k)
+            input('pretrain: ')
             for k,v in self.named_parameters():
-                if 'wh' in k or 'reg' in k or 'hm' in k:
-                    v.requires_grad=True
-                else:
-                    v.requires_grad=False 
-            # for k,v in self.named_parameters():
-            #     if 'bn' in k:
-            #         v.requires_grad=False
+                if 'stage4' in k:
+                    break
+                v.requires_grad=False 
             
+            #     if 'hm' in k:
+            #         v.requires_grad=False
+            for k,v in self.named_parameters():
+                if 'bn' in k:
+                    v.requires_grad=False
+            for k,v in self.named_parameters():
+                print(k,v.requires_grad)
+            input('grad:')
             # for k,v in pretrained_dict.items():
             #     print(k)
             # input('s')
@@ -611,7 +629,7 @@ def get_hr_net(**kwargs):
                STAGE2=stage2,
                STAGE3=stage3,
                STAGE4=stage4,
-               pretrained='../models/model_best.pth'')
+               pretrained='../models/hrnet_w18_small_model_v2.pth')
     model = HighResolutionNet(cfg, **kwargs)
     model.init_weights(cfg['pretrained'])
 

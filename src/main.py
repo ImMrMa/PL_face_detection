@@ -49,13 +49,37 @@ def main(opt):
     trainer.set_device(opt.gpus, opt.chunk_sizes, opt.device)
 
     print('Setting up data...')
-
+    def default_collate(batches):
+        batch_hm=[]
+        batch_wh=[]
+        batch_offset=[]
+        batch_mask=[]
+        for i in range(4):
+            batch_hm.append([])
+            batch_offset.append([])
+            batch_wh.append([])
+            batch_mask.append([])
+        for batch in batches:
+            for i in range(4):
+                batch_hm[i].append(batch['hm'][i])
+                batch_wh[i].append(batch['wh'][i])
+                batch_offset[i].append(batch['offset'][i])
+                batch_mask[i].append(batch['mask'][i])
+        batch=dict()
+        batch['hm']=[torch.tensor(i) for i in batch_hm]
+        batch['wh']=[torch.tensor(i) for i in batch_wh]
+        batch['offset']=[torch.tensor(i) for i in batch_offset]
+        batch['mask']=[torch.tensor(i) for i in batch_mask]
+        data=[i['input'] for i in batches]
+        batch['input']=torch.stack([i['input'] for i in batches],0)
+        return batch
     val_loader = torch.utils.data.DataLoader(
         Dataset(opt, 'val'),
-        batch_size=1,
+        batch_size=opt.batch_size,
         shuffle=False,
         num_workers=1,
-        pin_memory=True
+        pin_memory=True,
+        # collate_fn=default_collate
     )
 
     if opt.test:
@@ -72,7 +96,8 @@ def main(opt):
             shuffle=True,
             num_workers=opt.num_workers,
             pin_memory=True,
-            drop_last=True
+            drop_last=True,
+            # collate_fn=default_collate
         )
     print('Starting training...')
     best = 1e10

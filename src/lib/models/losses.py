@@ -126,7 +126,21 @@ class FocalLoss(nn.Module):
     def forward(self, out, target):
         return self.neg_loss(out, target)
 
+class MultiFocalLoss(nn.Module):
+    '''nn.Module warpper for focal loss'''
 
+    def __init__(self):
+        super(MultiFocalLoss, self).__init__()
+        self.neg_loss = _neg_loss
+
+    def forward(self, outs,masks,targets):
+        loss=0.0
+        mask_sum=0.0
+        for out,target,mask in zip(outs,targets,masks):
+            loss+=self.neg_loss(out,target)*mask.sum()
+            mask_sum+=mask.sum()
+        loss=loss/(mask_sum+1e-4)
+        return loss
 class RegLoss(nn.Module):
     '''Regression loss for an output tensor
       Arguments:
@@ -158,15 +172,26 @@ class RegL1Loss(nn.Module):
         return loss
 
 
-class FaL1Loss(nn.Module):
+class RegFaL1Loss(nn.Module):
     def __init__(self):
-        super(FaL1Loss, self).__init__()
+        super(RegFaL1Loss, self).__init__()
 
     def forward(self, output, mask, target):
-        loss = F.l1_loss(output * mask, target * mask, reduction='sum')
-        loss = loss / (mask.sum() + 1e-4)
+        mask_offset=mask.sum(1,True)
+        mask_offset[mask_offset>1]=1
+        loss = F.l1_loss(output * mask_offset, target * mask_offset, reduction='sum')
+        loss = loss / (mask_offset.sum() + 1e-4)
         return loss
 
+class WhFaL1Loss(nn.Module):
+    def __init__(self):
+        super(WhFaL1Loss, self).__init__()
+        # self.l2loss=torch.nn.MSELoss(reduction='sum')
+    def forward(self, outputs, masks, targets):
+        masks_wh=masks.unsqueeze(2)
+        loss= F.l1_loss(outputs * masks_wh, targets * masks_wh,reduction='sum')
+        loss=loss/(masks_wh.sum()+1e-4)
+        return loss
 
 class NormRegL1Loss(nn.Module):
     def __init__(self):

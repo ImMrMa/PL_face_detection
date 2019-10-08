@@ -6,7 +6,7 @@ import torch
 import numpy as np
 
 from models.losses import FocalLoss
-from models.losses import FaL1Loss
+from models.losses import RegFaL1Loss,WhFaL1Loss
 from models.decode import ctdet_decode
 from models.utils import _sigmoid
 from utils.debugger import Debugger
@@ -19,8 +19,8 @@ class FadetLoss(torch.nn.Module):
     def __init__(self, opt):
         super(FadetLoss, self).__init__()
         self.crit = torch.nn.MSELoss() if opt.mse_loss else FocalLoss()
-        self.crit_reg = FaL1Loss()
-        self.crit_wh = FaL1Loss()
+        self.crit_reg = RegFaL1Loss()
+        self.crit_wh = WhFaL1Loss()
         self.opt = opt
 
     def forward(self, outputs, batch):
@@ -29,7 +29,7 @@ class FadetLoss(torch.nn.Module):
         for s in range(opt.num_stacks):
             output = outputs[s]
             if not opt.mse_loss:
-                output['hm'] = _sigmoid(output['hm'])
+                output['hm']=_sigmoid(output['hm'])
             if opt.eval_oracle_hm:
                 output['hm'] = batch['hm']
             if opt.eval_oracle_wh:
@@ -44,7 +44,8 @@ class FadetLoss(torch.nn.Module):
                     output['reg'].shape[3], output['reg'].shape[2])).to(opt.device)
             hm_loss += self.crit(output['hm'], batch['hm']) / opt.num_stacks
             if opt.wh_weight > 0:
-                wh_loss += self.crit_reg(output['wh'],
+                output['wh']=_sigmoid(output['wh'])
+                wh_loss += self.crit_wh(output['wh'],
                                           batch['mask'], batch['wh']) / opt.num_stacks
 
             if opt.reg_offset and opt.off_weight > 0:
@@ -53,6 +54,7 @@ class FadetLoss(torch.nn.Module):
 
         loss = opt.hm_weight * hm_loss + opt.wh_weight * wh_loss + \
             opt.off_weight * off_loss
+        # loss =opt.wh_weight * wh_loss 
         loss_stats = {'loss': loss, 'hm_loss': hm_loss,
                       'wh_loss': wh_loss, }
         if opt.reg_offset:
