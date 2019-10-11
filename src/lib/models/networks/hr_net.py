@@ -359,13 +359,18 @@ class HighResolutionNet(nn.Module):
                             kernel_size=1, stride=1, padding=0,bias=bias)))
                 else:
                     fcs = nn.ModuleList()
-                    for i in range(1,5):
+                    for i in [1,2,4]:
                             fcs.append(nn.Sequential(
-                                nn.Conv2d(64, head_conv,
+                                nn.Conv2d(64, 32,
                                 kernel_size=3, padding=i, dilation=i,bias=bias),
                                 nn.ReLU(inplace=True),
-                                nn.Conv2d(head_conv, num_output, 
-                                kernel_size=1, stride=1, padding=0,bias=bias)))
+                                ))
+                    fcs.append(nn.Sequential(
+                            nn.Conv2d(96, head_conv,
+                            kernel_size=3, padding=1, bias=bias),
+                            nn.ReLU(inplace=True),
+                            nn.Conv2d(head_conv, num_output, 
+                            kernel_size=1, stride=1, padding=0,bias=bias)))
             self.__setattr__(head, fcs)
         self.inplanes=256
         self.deconv_layers = self._make_deconv_layer(
@@ -547,9 +552,11 @@ class HighResolutionNet(nn.Module):
                 ret[head]=self.__getattr__(head)(x)
             else:
                 ret[head]=[]
-                for i in range(4):
-                    ret[head].append(self.__getattr__(head)[i](x).unsqueeze(1))
-                ret[head]=torch.cat(ret[head],1)
+                middle_layers=[]
+                for i in range(3):
+                    middle_layers.append(self.__getattr__(head)[i](x))
+                middle_layer=torch.cat(middle_layers,1)
+                ret[head]=self.__getattr__(head)[-1](middle_layer)
         return [ret]
 
     def init_weights(self, pretrained='',):

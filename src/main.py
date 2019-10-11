@@ -75,7 +75,7 @@ def main(opt):
         return batch
     val_loader = torch.utils.data.DataLoader(
         Dataset(opt, 'val'),
-        batch_size=opt.batch_size,
+        batch_size=1,
         shuffle=False,
         num_workers=1,
         pin_memory=True,

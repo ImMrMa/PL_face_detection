@@ -188,7 +188,7 @@ class WhFaL1Loss(nn.Module):
         super(WhFaL1Loss, self).__init__()
         # self.l2loss=torch.nn.MSELoss(reduction='sum')
     def forward(self, outputs, masks, targets):
-        masks_wh=masks.unsqueeze(2)
+        masks_wh=masks
         loss= F.l1_loss(outputs * masks_wh, targets * masks_wh,reduction='sum')
         loss=loss/(masks_wh.sum()+1e-4)
         return loss

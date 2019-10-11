@@ -63,7 +63,7 @@ class WIDERDetection(data.Dataset):
         ret=self.transform(img,target)
         return ret
     def gen_labels(self,h,w,bbox_index,hm,wh,offset,mask,stride):
-        rf_sizes=[32,64,128,256]
+        rf_sizes=[[10,32],[32,64],[64,128],[128,384]]
         index=stride-1
         wh=wh[index]
         mask=mask[index]
@@ -74,11 +74,42 @@ class WIDERDetection(data.Dataset):
         ct=np.array([(bbox_index[0]+bbox_index[2])/2,(bbox_index[1]+bbox_index[3])/2])
         ct_int = ct.astype(np.int32)
         draw_gaussian(hm[1],ct_int,radius)
-        wh[0][ct_int[1],ct_int[0]]=w/rf_sizes[index]
-        wh[1][ct_int[1],ct_int[0]]=h/rf_sizes[index]
+
+        wh[0][ct_int[1],ct_int[0]]=0.6*(w-rf_sizes[index][0])/(rf_sizes[index][1]-rf_sizes[index][0])+0.2
+        wh[1][ct_int[1],ct_int[0]]=0.6*(h-rf_sizes[index][0])/(rf_sizes[index][1]-rf_sizes[index][0])+0.2
         offset[0][ct_int[1],ct_int[0]]=ct[0]-ct_int[0]
         offset[1][ct_int[1],ct_int[0]]=ct[1]-ct_int[1]
         mask[ct_int[1],ct_int[0]]=1
+    def gen_labels_single(self,h,w,bbox_index,hm,wh,offset,mask):
+        draw_gaussian =draw_umich_gaussian
+        radius=math.sqrt(((math.ceil(h)*math.ceil(w))/6.28))
+        # radius = gaussian_radius((math.ceil(h), math.ceil(w)))
+        radius = max(0, math.ceil(radius))
+
+        ct=np.array([(bbox_index[0]+bbox_index[2])/2,(bbox_index[1]+bbox_index[3])/2])
+        ct_int = ct.astype(np.int32)
+        draw_gaussian(hm[1],ct_int,radius)
+        if (h+w)/2<=32:
+            rf_size=32
+            norm_w=w/32*0.3
+            norm_h=h/32*0.3
+        elif (h+w)/2<=128:
+            rf_sizes=[32,128]
+            norm_w=0.4*(w-rf_sizes[0])/(rf_sizes[1]-rf_sizes[0])+0.3
+            norm_h=0.4*(h-rf_sizes[0])/(rf_sizes[1]-rf_sizes[0])+0.3
+        elif (h+w)/2<=384:
+            rf_sizes=[128,384]
+            norm_w=0.2*(w-rf_sizes[0])/(rf_sizes[1]-rf_sizes[0])+0.7
+            norm_h=0.2*(h-rf_sizes[0])/(rf_sizes[1]-rf_sizes[0])+0.7
+        else:
+            rf_sizes=[384,1024]
+            norm_w=0.08*(w-rf_sizes[0])/(rf_sizes[1]-rf_sizes[0])+0.9
+            norm_h=0.08*(h-rf_sizes[0])/(rf_sizes[1]-rf_sizes[0])+0.9
+        wh[0][ct_int[1],ct_int[0]]=norm_w
+        wh[1][ct_int[1],ct_int[0]]=norm_h   
+        offset[0][ct_int[1],ct_int[0]]=ct[0]-ct_int[0]
+        offset[1][ct_int[1],ct_int[0]]=ct[1]-ct_int[1]
+        mask[0][ct_int[1],ct_int[0]]=1
     def transform(self,img,target):
 
         output_h=img.shape[1]
@@ -86,19 +117,26 @@ class WIDERDetection(data.Dataset):
         
         hm=np.zeros((2, output_h, output_w), dtype=np.float32)
         offset=np.zeros((2, output_h, output_w), dtype=np.float32)
-        wh=np.zeros((4,2, output_h, output_w), dtype=np.float32)
-        mask=np.zeros((4,output_h, output_w),dtype=np.float32)
+        if cfg.multi_wh:
+            wh=np.zeros((4,2, output_h, output_w), dtype=np.float32)
+            mask=np.zeros((4,output_h, output_w),dtype=np.float32)
+        else:
+            wh=np.zeros((2, output_h, output_w), dtype=np.float32)
+            mask=np.zeros((1,output_h, output_w),dtype=np.float32)
         for bbox in target:
-            bbox_index=bbox*img.shape[1]
+            bbox_index=[bbox[0]*output_w,bbox[1]*output_h,bbox[2]*output_w,bbox[3]*output_h]
             w,h=(bbox_index[2]-bbox_index[0]),(bbox_index[3]-bbox_index[1])
-            if (w+h)/2<=32:
-                self.gen_labels(h,w,bbox_index,hm,wh,offset,mask,1)
-            elif (w+h)/2<=64:
-                self.gen_labels(h,w,bbox_index,hm,wh,offset,mask,2)
-            elif (w+h)/2<=128:
-                self.gen_labels(h,w,bbox_index,hm,wh,offset,mask,3)
+            if cfg.multi_wh:
+                if (w+h)/2<=32:
+                    self.gen_labels(h,w,bbox_index,hm,wh,offset,mask,1)
+                elif (w+h)/2<=64:
+                    self.gen_labels(h,w,bbox_index,hm,wh,offset,mask,2)
+                elif (w+h)/2<=128:
+                    self.gen_labels(h,w,bbox_index,hm,wh,offset,mask,3)
+                else:
+                    self.gen_labels(h,w,bbox_index,hm,wh,offset,mask,4)
             else:
-                self.gen_labels(h,w,bbox_index,hm,wh,offset,mask,4)
+                self.gen_labels_single(h,w,bbox_index,hm,wh,offset,mask)
         ret = {'input': img, 'hm': hm,'wh': wh,
             'mask': mask, 'offset': offset}
         return ret

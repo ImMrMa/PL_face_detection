@@ -828,18 +828,15 @@ def preprocess(img, bbox_labels, mode, image_path):
 
             img = Image.fromarray(img)
 
-    interp_mode = [
-        Image.BILINEAR, Image.HAMMING, Image.NEAREST, Image.BICUBIC,
-        Image.LANCZOS
-    ]
-    interp_indx = np.random.randint(0, 5)
+        interp_mode = [
+            Image.BILINEAR, Image.HAMMING, Image.NEAREST, Image.BICUBIC,
+            Image.LANCZOS
+        ]
+        interp_indx = np.random.randint(0, 5)
 
-    img = img.resize((cfg.resize_width, cfg.resize_height),
-                     resample=interp_mode[interp_indx])
-
-    img = np.array(img)
-
-    if mode == 'train':
+        img = img.resize((cfg.resize_width, cfg.resize_height),
+                        resample=interp_mode[interp_indx])
+        img = np.array(img)
         mirror = int(np.random.uniform(0, 2))
         if mirror == 1:
             img = img[:, ::-1, :]
@@ -848,6 +845,10 @@ def preprocess(img, bbox_labels, mode, image_path):
                 tmp = sampled_labels[i][1]
                 sampled_labels[i][1] = 1 - sampled_labels[i][3]
                 sampled_labels[i][3] = 1 - tmp
+        
+    else:
+        img=img.resize((4*(img.size[0]//4),4*(img.size[1]//4)),resample=Image.BILINEAR)  
+        img = np.array(img)
     #img = Image.fromarray(img)
     img = img.transpose(2,0,1)
     img = img.astype('float32')
