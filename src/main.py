@@ -78,7 +78,7 @@ def main(opt):
         batch_size=1,
         shuffle=False,
         num_workers=1,
-        pin_memory=True,
+        pin_memory=False,
         # collate_fn=default_collate
     )
 
@@ -127,7 +127,7 @@ def main(opt):
         if epoch in opt.lr_step:
             save_model(os.path.join(opt.save_dir, 'model_{}.pth'.format(epoch)),
                        epoch, model, optimizer)
-            lr = opt.lr * (0.1 ** (opt.lr_step.index(epoch) + 1))
+            lr = opt.lr * (opt.lr_dc ** (opt.lr_step.index(epoch) + 1))
             print('Drop LR to', lr)
             for param_group in optimizer.param_groups:
                 param_group['lr'] = lr

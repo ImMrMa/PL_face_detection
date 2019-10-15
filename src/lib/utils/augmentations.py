@@ -847,7 +847,14 @@ def preprocess(img, bbox_labels, mode, image_path):
                 sampled_labels[i][3] = 1 - tmp
         
     else:
-        img=img.resize((4*(img.size[0]//4),4*(img.size[1]//4)),resample=Image.BILINEAR)  
+        if((img.size[0]*img.size[1])**0.5>=1500):
+            max_size=max(img.size[0],img.size[1])
+            p=1000/max_size
+            w,h=img.size[0]*p,img.size[1]*p
+            w,h=4*(w//4),4*(h//4)
+            img=img.resize((w,h),resample=Image.BILINEAR)
+        else:
+            img=img.resize((4*(img.size[0]//4),4*(img.size[1]//4)),resample=Image.BILINEAR)  
         img = np.array(img)
     #img = Image.fromarray(img)
     img = img.transpose(2,0,1)

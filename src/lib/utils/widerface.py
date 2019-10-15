@@ -16,9 +16,11 @@ from utils.config import cfg
 class WIDERDetection(data.Dataset):
     """docstring for WIDERDetection"""
     default_resolution=cfg.resize_height,cfg.resize_width
-    mean=cfg.img_mean
-    std=0
-    num_classes=2
+    mean = np.array([0.485, 0.456, 0.406],
+                    dtype=np.float32).reshape(1, 1, 3)
+    std = np.array([0.229, 0.224, 0.225],
+                   dtype=np.float32).reshape(1, 1, 3)
+    num_classes=1
     def __init__(self,opts=None, mode='train'):
         if mode=='train':
             list_file=cfg.FACE.TRAIN_FILE
@@ -68,8 +70,10 @@ class WIDERDetection(data.Dataset):
         wh=wh[index]
         mask=mask[index]
         draw_gaussian =draw_umich_gaussian
-        radius=math.sqrt(((math.ceil(h)*math.ceil(w))/6.28))
-        # radius = gaussian_radius((math.ceil(h), math.ceil(w)))
+        if (w+h)<=16:
+            radius=math.sqrt(((math.ceil(h)*math.ceil(w))/6.28))
+        else:
+            radius = gaussian_radius((math.ceil(h), math.ceil(w)))
         radius = max(0, math.ceil(radius))
         ct=np.array([(bbox_index[0]+bbox_index[2])/2,(bbox_index[1]+bbox_index[3])/2])
         ct_int = ct.astype(np.int32)
@@ -80,6 +84,71 @@ class WIDERDetection(data.Dataset):
         offset[0][ct_int[1],ct_int[0]]=ct[0]-ct_int[0]
         offset[1][ct_int[1],ct_int[0]]=ct[1]-ct_int[1]
         mask[ct_int[1],ct_int[0]]=1
+    def gen_labels_two(self,h,w,bbox_index,hm_small,hm_norm,wh_small,wh_norm,mask_small,mask_norm):
+        draw_gaussian =draw_umich_gaussian
+        length=(h*w)**0.5
+        if length<=64:
+            mode=1
+        else:
+            mode=2
+        if length<=16:
+            radius=length
+        elif length<=32: 
+            radius =math.ceil(length*(1-0.3*(length-16)/16))
+        elif length<=64:
+            radius=(length*0.7)*(1-(length-32)/32)+gaussian_radius((math.ceil(h), math.ceil(w)))*((length-32)/32)
+        else:
+            radius=gaussian_radius((math.ceil(h), math.ceil(w)))
+        
+        radius = max(1, math.ceil(radius))
+        ct=np.array([(bbox_index[0]+bbox_index[2])/2,(bbox_index[1]+bbox_index[3])/2])
+        ct_int = ct.astype(np.int32)
+
+        if length<=192:
+            draw_gaussian(hm_small[0],ct_int,radius)
+        if (h+w)/2<=32:
+            rf_size=32
+            norm_w=w/32*0.3
+            norm_h=h/32*0.3
+        elif (h+w)/2<=128:
+            rf_sizes=[32,128]
+            norm_w=0.4*(w-rf_sizes[0])/(rf_sizes[1]-rf_sizes[0])+0.3
+            norm_h=0.4*(h-rf_sizes[0])/(rf_sizes[1]-rf_sizes[0])+0.3
+        elif (h+w)/2<=384:
+            rf_sizes=[128,384]
+            norm_w=0.2*(w-rf_sizes[0])/(rf_sizes[1]-rf_sizes[0])+0.7
+            norm_h=0.2*(h-rf_sizes[0])/(rf_sizes[1]-rf_sizes[0])+0.7
+        else:
+            rf_sizes=[384,1024]
+            norm_w=0.08*(w-rf_sizes[0])/(rf_sizes[1]-rf_sizes[0])+0.9
+            norm_h=0.08*(h-rf_sizes[0])/(rf_sizes[1]-rf_sizes[0])+0.9
+        wh_small[0][ct_int[1],ct_int[0]]=norm_w
+        wh_small[1][ct_int[1],ct_int[0]]=norm_h   
+        mask_small[0][ct_int[1],ct_int[0]]=1
+
+        if mode==2:
+            h,w=h,w
+            bbox_index=[bbox_index[0]/4,bbox_index[1]/4,bbox_index[2]/4,bbox_index[3]/4]
+            radius=gaussian_radius((math.ceil(h/4), math.ceil(w/4)))
+            radius = max(1, math.ceil(radius))  
+            ct=np.array([(bbox_index[0]+bbox_index[2])/2,(bbox_index[1]+bbox_index[3])/2])
+            ct_int = ct.astype(np.int32)
+            draw_gaussian(hm_norm[0],ct_int,radius)
+            if (h+w)/2<=128:
+                rf_sizes=[64,128]
+                norm_w=0.2*(w-rf_sizes[0])/(rf_sizes[1]-rf_sizes[0])+0.1
+                norm_h=0.2*(h-rf_sizes[0])/(rf_sizes[1]-rf_sizes[0])+0.1
+            elif (h+w)/2<=640:
+                rf_sizes=[128,768]
+                norm_w=0.5*(w-rf_sizes[0])/(rf_sizes[1]-rf_sizes[0])+0.3
+                norm_h=0.5*(h-rf_sizes[0])/(rf_sizes[1]-rf_sizes[0])+0.3    
+            else:
+                rf_sizes=[768,1024]
+                norm_w=0.1*(w-rf_sizes[0])/(rf_sizes[1]-rf_sizes[0])+0.8
+                norm_h=0.1*(h-rf_sizes[0])/(rf_sizes[1]-rf_sizes[0])+0.8
+            wh_norm[0][ct_int[1],ct_int[0]]=norm_w
+            wh_norm[1][ct_int[1],ct_int[0]]=norm_h   
+            mask_norm[0][ct_int[1],ct_int[0]]=1
     def gen_labels_single(self,h,w,bbox_index,hm,wh,offset,mask):
         draw_gaussian =draw_umich_gaussian
         radius=math.sqrt(((math.ceil(h)*math.ceil(w))/6.28))
@@ -114,12 +183,13 @@ class WIDERDetection(data.Dataset):
 
         output_h=img.shape[1]
         output_w=img.shape[2]
-        
-        hm=np.zeros((2, output_h, output_w), dtype=np.float32)
-        offset=np.zeros((2, output_h, output_w), dtype=np.float32)
         if cfg.multi_wh:
-            wh=np.zeros((4,2, output_h, output_w), dtype=np.float32)
-            mask=np.zeros((4,output_h, output_w),dtype=np.float32)
+            wh_small=np.zeros((2, output_h, output_w), dtype=np.float32)
+            wh_norm=np.zeros((2, output_h//4, output_w//4), dtype=np.float32)
+            mask_small=np.zeros((1,output_h, output_w),dtype=np.float32)
+            mask_norm=np.zeros((1,output_h//4,output_w//4),dtype=np.float32)
+            hm_small=np.zeros((1,output_h,output_w),dtype=np.float32)
+            hm_norm=np.zeros((1,output_h//4,output_w//4),dtype=np.float32)
         else:
             wh=np.zeros((2, output_h, output_w), dtype=np.float32)
             mask=np.zeros((1,output_h, output_w),dtype=np.float32)
@@ -127,18 +197,22 @@ class WIDERDetection(data.Dataset):
             bbox_index=[bbox[0]*output_w,bbox[1]*output_h,bbox[2]*output_w,bbox[3]*output_h]
             w,h=(bbox_index[2]-bbox_index[0]),(bbox_index[3]-bbox_index[1])
             if cfg.multi_wh:
-                if (w+h)/2<=32:
-                    self.gen_labels(h,w,bbox_index,hm,wh,offset,mask,1)
-                elif (w+h)/2<=64:
-                    self.gen_labels(h,w,bbox_index,hm,wh,offset,mask,2)
-                elif (w+h)/2<=128:
-                    self.gen_labels(h,w,bbox_index,hm,wh,offset,mask,3)
-                else:
-                    self.gen_labels(h,w,bbox_index,hm,wh,offset,mask,4)
+                self.gen_labels_two(h,w,bbox_index,hm_small,hm_norm,wh_small,wh_norm,mask_small,mask_norm)
+                # if (w+h)/2<=32:
+                #     self.gen_labels(h,w,bbox_index,hm,wh,offset,mask,1)
+                # elif (w+h)/2<=64:
+                #     self.gen_labels(h,w,bbox_index,hm,wh,offset,mask,2)
+                # elif (w+h)/2<=128:
+                #     self.gen_labels(h,w,bbox_index,hm,wh,offset,mask,3)
+                # else:
+                #     self.gen_labels(h,w,bbox_index,hm,wh,offset,mask,4)
             else:
                 self.gen_labels_single(h,w,bbox_index,hm,wh,offset,mask)
-        ret = {'input': img, 'hm': hm,'wh': wh,
-            'mask': mask, 'offset': offset}
+        if cfg.multi_wh:
+            ret = {'input': img, 'hm_small': hm_small,'wh_small': wh_small,'mask_small': mask_small,'mask_norm':mask_norm,'wh_norm':wh_norm,'hm_norm':hm_norm}
+        else:
+            ret= {'input': img, 'hm': hm,'wh': wh,
+            'mask': mask, }
         return ret
     def pull_item(self, index):
         while True:
@@ -146,7 +220,7 @@ class WIDERDetection(data.Dataset):
             img = Image.open(image_path)
             if img.mode == 'L':
                 img = img.convert('RGB')
-
+    
             im_width, im_height = img.size
             boxes = self.annotransform(
                 np.array(self.boxes[index]), im_width, im_height)

@@ -18,109 +18,155 @@ from logger import Logger
 from utils.utils import AverageMeter
 from datasets.dataset_factory import dataset_factory
 from detectors.detector_factory import detector_factory
+from PIL import Image
+import os.path as osp
 
 class PrefetchDataset(torch.utils.data.Dataset):
-  def __init__(self, opt, dataset, pre_process_func):
-    self.images = dataset.images
-    self.load_image_func = dataset.coco.loadImgs
-    self.img_dir = dataset.img_dir
-    self.pre_process_func = pre_process_func
-    self.opt = opt
-  
-  def __getitem__(self, index):
-    img_id = self.images[index]
-    img_info = self.load_image_func(ids=[img_id])[0]
-    img_path = os.path.join(self.img_dir, img_info['file_name'])
-    image = cv2.imread(img_path)
-    images, meta = {}, {}
-    for scale in opt.test_scales:
-      if opt.task == 'ddd':
-        images[scale], meta[scale] = self.pre_process_func(
-          image, scale, img_info['calib'])
-      else:
-        images[scale], meta[scale] = self.pre_process_func(image, scale)
-    return img_id, {'images': images, 'image': image, 'meta': meta}
+    def __init__(self, opt, dataset, pre_process_func):
+        if 'fadet' in opt.task:
+            self.images = dataset.fnames
+        else:
+            self.images = images
+            self.load_image_func = dataset.coco.loadImgs
+            self.img_dir = dataset.img_dir
+        self.pre_process_func = pre_process_func
+        self.opt = opt
 
-  def __len__(self):
-    return len(self.images)
+    def __getitem__(self, index):
+        if 'fadet' in opt.task:
+            img_path = self.images[index]
+            image_id=index
+        else:
+          img_id = self.images[index]
+          img_info = self.load_image_func(ids=[img_id])[0]
+          img_path = os.path.join(self.img_dir, img_info['file_name'])
+        image = Image.open(img_path)
+        if image.mode == 'L':
+                image = image.convert('RGB')
+        image=np.array(image)
+        images, meta = {}, {}
+        for scale in opt.test_scales:
+            if opt.task == 'ddd':
+                images[scale], meta[scale] = self.pre_process_func(
+                    image, scale, img_info['calib'])
+            else:
+                if index==3002:
+                    scale*=0.5
+                images[scale], meta[scale] = self.pre_process_func(
+                    image, scale)
+        return image_id, {'images': images, 'image': image, 'meta': meta,'img_path':img_path}
+
+    def __len__(self):
+        return len(self.images)
+
 
 def prefetch_test(opt):
-  os.environ['CUDA_VISIBLE_DEVICES'] = opt.gpus_str
+    os.environ['CUDA_VISIBLE_DEVICES'] = opt.gpus_str
 
-  Dataset = dataset_factory[opt.dataset]
-  opt = opts().update_dataset_info_and_set_heads(opt, Dataset)
-  print(opt)
-  Logger(opt)
-  Detector = detector_factory[opt.task]
-  
-  split = 'val' if not opt.trainval else 'test'
-  dataset = Dataset(opt, split)
-  detector = Detector(opt)
-  
-  data_loader = torch.utils.data.DataLoader(
-    PrefetchDataset(opt, dataset, detector.pre_process), 
-    batch_size=1, shuffle=False, num_workers=1, pin_memory=True)
+    Dataset = dataset_factory[opt.dataset]
+    opt = opts().update_dataset_info_and_set_heads(opt, Dataset)
+    print(opt)
+    Logger(opt)
+    Detector = detector_factory[opt.task]
 
-  results = {}
-  num_iters = len(dataset)
-  bar = Bar('{}'.format(opt.exp_id), max=num_iters)
-  time_stats = ['tot', 'load', 'pre', 'net', 'dec', 'post', 'merge']
-  avg_time_stats = {t: AverageMeter() for t in time_stats}
-  for ind, (img_id, pre_processed_images) in enumerate(data_loader):
-    ret = detector.run(pre_processed_images)
-    results[img_id.numpy().astype(np.int32)[0]] = ret['results']
-    Bar.suffix = '[{0}/{1}]|Tot: {total:} |ETA: {eta:} '.format(
-                   ind, num_iters, total=bar.elapsed_td, eta=bar.eta_td)
-    for t in avg_time_stats:
-      avg_time_stats[t].update(ret[t])
-      Bar.suffix = Bar.suffix + '|{} {tm.val:.3f}s ({tm.avg:.3f}s) '.format(
-        t, tm = avg_time_stats[t])
-    bar.next()
-  bar.finish()
-  dataset.run_eval(results, opt.save_dir)
+    split = 'val' if not opt.trainval else 'test'
+    dataset = Dataset(opt, split)
+    detector = Detector(opt)
+    data_loader = torch.utils.data.DataLoader(PrefetchDataset(
+        opt, dataset, detector.pre_process),
+                                              batch_size=1,
+                                              shuffle=False,
+                                              num_workers=1,
+                                              pin_memory=True)
+
+    results = {}
+    num_iters = len(dataset)
+    bar = Bar('{}'.format(opt.exp_id), max=num_iters)
+    time_stats = ['tot', 'load', 'pre', 'net', 'dec', 'post', 'merge']
+    avg_time_stats = {t: AverageMeter() for t in time_stats}
+    save_path=osp.join(opt.save_dir,'eval')
+    if not osp.exists(save_path):
+        os.mkdir(save_path)
+    for ind, (img_id, pre_processed_images) in enumerate(data_loader):
+        ret = detector.run(pre_processed_images)
+        results=ret['results']
+        event_id=pre_processed_images['img_path'][0].split('/')[-2]
+        image_name=pre_processed_images['img_path'][0].split('/')[-1]
+        
+        ftxt=image_name.split('.jpg')[0]+'.txt'
+        dir_f=osp.join(save_path,event_id)
+        if not osp.exists(dir_f):
+            print(dir_f)
+            os.mkdir(dir_f)
+
+        f = open(osp.join(dir_f,ftxt), 'w')
+        f.write('{:s}\n'.format(event_id+'/'+image_name))
+        num=len(results[1])
+        f.write('{:d}\n'.format(num))
+        for x1,y1,x2,y2,p in results[1]:
+            xmin = np.floor(x1)
+            ymin = np.floor(y1)
+            w=np.ceil(x2-x1)
+            h=np.ceil(y2-y1)
+            f.write('{:.1f} {:.1f} {:.1f} {:.1f} {:.3f}\n'.
+                       format(xmin, ymin, w, h, p))
+        f.close()                    
+        # opt.save_dir
+        Bar.suffix = '[{0}/{1}]|Tot: {total:} |ETA: {eta:} '.format(
+            ind, num_iters, total=bar.elapsed_td, eta=bar.eta_td)
+        for t in avg_time_stats:
+            avg_time_stats[t].update(ret[t])
+            Bar.suffix = Bar.suffix + '|{} {tm.val:.3f}s ({tm.avg:.3f}s) '.format(
+                t, tm=avg_time_stats[t])
+        bar.next()
+    bar.finish()
+    # dataset.run_eval(results, opt.save_dir)
+
 
 def test(opt):
-  os.environ['CUDA_VISIBLE_DEVICES'] = opt.gpus_str
+    os.environ['CUDA_VISIBLE_DEVICES'] = opt.gpus_str
 
-  Dataset = dataset_factory[opt.dataset]
-  opt = opts().update_dataset_info_and_set_heads(opt, Dataset)
-  print(opt)
-  Logger(opt)
-  Detector = detector_factory[opt.task]
-  
-  split = 'val' if not opt.trainval else 'test'
-  dataset = Dataset(opt, split)
-  detector = Detector(opt)
+    Dataset = dataset_factory[opt.dataset]
+    opt = opts().update_dataset_info_and_set_heads(opt, Dataset)
+    print(opt)
+    Logger(opt)
+    Detector = detector_factory[opt.task]
 
-  results = {}
-  num_iters = len(dataset)
-  bar = Bar('{}'.format(opt.exp_id), max=num_iters)
-  time_stats = ['tot', 'load', 'pre', 'net', 'dec', 'post', 'merge']
-  avg_time_stats = {t: AverageMeter() for t in time_stats}
-  for ind in range(num_iters):
-    img_id = dataset.images[ind]
-    img_info = dataset.coco.loadImgs(ids=[img_id])[0]
-    img_path = os.path.join(dataset.img_dir, img_info['file_name'])
+    split = 'val' if not opt.trainval else 'test'
+    dataset = Dataset(opt, split)
+    detector = Detector(opt)
 
-    if opt.task == 'ddd':
-      ret = detector.run(img_path, img_info['calib'])
-    else:
-      ret = detector.run(img_path)
-    
-    results[img_id] = ret['results']
+    results = {}
+    num_iters = len(dataset)
+    bar = Bar('{}'.format(opt.exp_id), max=num_iters)
+    time_stats = ['tot', 'load', 'pre', 'net', 'dec', 'post', 'merge']
+    avg_time_stats = {t: AverageMeter() for t in time_stats}
+    for ind in range(num_iters):
+        img_id = dataset.images[ind]
+        img_info = dataset.coco.loadImgs(ids=[img_id])[0]
+        img_path = os.path.join(dataset.img_dir, img_info['file_name'])
 
-    Bar.suffix = '[{0}/{1}]|Tot: {total:} |ETA: {eta:} '.format(
-                   ind, num_iters, total=bar.elapsed_td, eta=bar.eta_td)
-    for t in avg_time_stats:
-      avg_time_stats[t].update(ret[t])
-      Bar.suffix = Bar.suffix + '|{} {:.3f} '.format(t, avg_time_stats[t].avg)
-    bar.next()
-  bar.finish()
-  dataset.run_eval(results, opt.save_dir)
+        if opt.task == 'ddd':
+            ret = detector.run(img_path, img_info['calib'])
+        else:
+            ret = detector.run(img_path)
+
+        results[img_id] = ret['results']
+
+        Bar.suffix = '[{0}/{1}]|Tot: {total:} |ETA: {eta:} '.format(
+            ind, num_iters, total=bar.elapsed_td, eta=bar.eta_td)
+        for t in avg_time_stats:
+            avg_time_stats[t].update(ret[t])
+            Bar.suffix = Bar.suffix + '|{} {:.3f} '.format(
+                t, avg_time_stats[t].avg)
+        bar.next()
+    bar.finish()
+    dataset.run_eval(results, opt.save_dir)
+
 
 if __name__ == '__main__':
-  opt = opts().parse()
-  if opt.not_prefetch_test:
-    test(opt)
-  else:
-    prefetch_test(opt)
+    opt = opts().parse()
+    if opt.not_prefetch_test:
+        test(opt)
+    else:
+        prefetch_test(opt)

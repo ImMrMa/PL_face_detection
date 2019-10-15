@@ -1,6 +1,6 @@
 cd src
 # train
-CUDA_VISIBLE_DEVICES=0,1 python main.py fadet --exp_id wider_hrnet_norm_wh_single --arch hrnet_18 --batch_size 10 --wh_weight=1 --not_reg_offset --lr 1e-3 --lr_step 15,35,50,60,65,65 --gpus 0,1 --resume --num_workers 4 --dataset wider
+CUDA_VISIBLE_DEVICES=1 python test.py fadet2 --exp_id wider_hrnet2_why_norm --arch hrnetv2_18 --down_ratio 1  --flip_test  --nms --not_reg_offset   --num_workers 1  --dataset wider --resume --keep_res --not_cuda_benchmark
 
 # test
 # python test.py ctdet --exp_id coco_resdcn18 --arch resdcn_18 --keep_res --resume

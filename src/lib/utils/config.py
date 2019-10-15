@@ -28,7 +28,7 @@ _C.apply_distort = True
 _C.apply_expand = False
 _C.img_mean = np.array([0.485, 0.456, 0.406])[:, np.newaxis, np.newaxis].astype(
     'float32')
-_C.multi_wh=False
+_C.multi_wh=True
 _C.img_std=np.array([0.229, 0.224, 0.225])[:,np.newaxis,np.newaxis].astype('float32')
 _C.resize_width = 640
 _C.resize_height = 640
