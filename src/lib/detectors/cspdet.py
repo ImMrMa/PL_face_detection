@@ -29,7 +29,7 @@ class FadetDetector(BaseDetector):
         #     return image
 
         with torch.no_grad():
-            output = self.model(images)[-1]
+            output = self.model(images)
             hm_small = output['hm_small'].sigmoid_()
             wh_small = output['wh_small'].sigmoid_()
             hm_norm = output['hm_norm'].sigmoid_()

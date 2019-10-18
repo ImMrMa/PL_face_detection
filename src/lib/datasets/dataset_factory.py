@@ -12,7 +12,7 @@ from .dataset.pascal import PascalVOC
 from .dataset.kitti import KITTI
 from .dataset.coco_hp import COCOHP
 from utils.widerface import WIDERDetection
-
+from .dataset.wider_csp import WiderCsp
 dataset_factory = {
     'wider': WIDERDetection,
     'coco': COCO,
@@ -30,8 +30,10 @@ _sample_factory = {
 
 
 def get_dataset(dataset, task):
-    if 'wider' in dataset:
+    if 'wider' == dataset:
         return WIDERDetection
+    elif 'wider_csp'==dataset:
+        return WiderCsp
     class Dataset(dataset_factory[dataset], _sample_factory[task]):
         pass
     return Dataset

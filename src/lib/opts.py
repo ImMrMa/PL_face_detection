@@ -83,8 +83,10 @@ class opts(object):
         # train
         self.parser.add_argument('--lr', type=float, default=1.25e-4,
                                  help='learning rate for batch size 32.')
-        self.parser.add_argument('--lr_dc', type=float, default=0.5,
+        self.parser.add_argument('--lr_factor', type=float, default=0.5,
                                  help='learning decrease  0.5.')
+        self.parser.add_argument('--optim', type=str, default='sgd',
+                                 help='optimizer')
                 
         self.parser.add_argument('--lr_step', type=str, default='90,120',
                                  help='drop learning rate by 10.')
@@ -96,7 +98,7 @@ class opts(object):
                                  help='batch size on the master gpu.')
         self.parser.add_argument('--num_iters', type=int, default=-1,
                                  help='default: #samples / batch_size.')
-        self.parser.add_argument('--val_intervals', type=int, default=99,
+        self.parser.add_argument('--val_intervals', type=int, default=5,
                                  help='number of epochs to run validation.')
         self.parser.add_argument('--trainval', action='store_true',
                                  help='include validation in training and '
@@ -161,11 +163,11 @@ class opts(object):
         # ctdet
         self.parser.add_argument('--reg_loss', default='l1',
                                  help='regression loss: sl1 | l1 | l2')
-        self.parser.add_argument('--hm_weight', type=float, default=1,
+        self.parser.add_argument('--hm_weight', type=float, default=0.01,
                                  help='loss weight for keypoint heatmaps.')
-        self.parser.add_argument('--off_weight', type=float, default=1,
+        self.parser.add_argument('--off_weight', type=float, default=0.1,
                                  help='loss weight for keypoint local offsets.')
-        self.parser.add_argument('--wh_weight', type=float, default=0.1,
+        self.parser.add_argument('--wh_weight', type=float, default=1,
                                  help='loss weight for bounding box size.')
         # multi_pose
         self.parser.add_argument('--hp_weight', type=float, default=1,
@@ -350,6 +352,10 @@ class opts(object):
                         'wh_small':2,
                         'wh_norm':2,
                         'hm_norm':1}
+        elif opt.task == 'cspdet':
+            opt.heads = {'hm':1,
+                        'wh':2,
+                        'off':2,}
         else:
             assert 0, 'task not defined!'
         print('heads', opt.heads)
@@ -359,6 +365,9 @@ class opts(object):
         default_dataset_info = {
             'fadet': {'default_resolution': [640, 640], 'num_classes': 2,
                       'mean': [123., 117.,104.]/255, 'std': [0.289, 0.274, 0.278],
+                      'dataset': 'wider'},
+            'cspdet': {'default_resolution': [704, 704], 'num_classes': 1,
+                      'mean': [0.485, 0.456, 0.406], 'std': [0.229, 0.224, 0.225],
                       'dataset': 'wider'},
             'ctdet': {'default_resolution': [512, 512], 'num_classes': 80,
                       'mean': [0.408, 0.447, 0.470], 'std': [0.289, 0.274, 0.278],

@@ -17,13 +17,16 @@ class ModleWithLoss(torch.nn.Module):
 
     def forward(self, batch):
         outputs = self.model(batch['input'])
+        if isinstance(outputs,list):
+            outputs=outputs[0]
         loss, loss_stats = self.loss(outputs, batch)
-        return outputs[-1], loss, loss_stats
+        return outputs, loss, loss_stats
 
 
 class BaseTrainer(object):
     def __init__(self, opt, model, optimizer=None):
         self.opt = opt
+        
         self.optimizer = optimizer
         self.loss_stats, self.loss = self._get_losses(opt)
         self.model_with_loss = ModleWithLoss(model, self.loss)
@@ -78,7 +81,7 @@ class BaseTrainer(object):
                 self.optimizer.zero_grad()
                 loss.backward()
                 self.optimizer.step()
-            batch_time.update(time.time() - end)
+            batch_time.update(  time.time() - end)
             end = time.time()
 
             Bar.suffix = '{phase}: [{0}][{1}/{2}]|Tot: {total:} |ETA: {eta:} '.format(

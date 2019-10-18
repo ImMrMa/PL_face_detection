@@ -13,7 +13,6 @@ import torch.nn as nn
 from .utils import _tranpose_and_gather_feat
 import torch.nn.functional as F
 
-
 def _slow_neg_loss(pred, gt):
     '''focal loss from CornerNet'''
     pos_inds = gt.eq(1)

@@ -15,6 +15,7 @@ from .networks.large_hourglass import get_large_hourglass_net
 from .networks.deeplab import get_deeplabv3plus
 from .networks.hr_net import get_hr_net
 from .networks.hr_net_multi import get_hr_net as get_hr_net_v2
+from .networks.resnet_csp_fpn import resnet50
 _model_factory = {
     'res': get_pose_net,  # default Resnet with deconv
     'dlav0': get_dlav0,  # default DLAup
@@ -23,13 +24,17 @@ _model_factory = {
     'hourglass': get_large_hourglass_net,
     'deeplab_resnet101':get_deeplabv3plus,
     'hrnet':get_hr_net,
-    'hrnetv2':get_hr_net_v2
+    'hrnetv2':get_hr_net_v2,
+    'cspfpn':resnet50
 }
 
 
 def create_model(arch, heads, head_conv):
     if 'deeplab' in arch:
         get_model = _model_factory[arch]
+        model=get_model()
+    elif 'csp' in arch:
+        get_model=_model_factory[arch]
         model=get_model()
     else:
         num_layers = int(arch[arch.find('_') + 1:]) if '_' in arch else 0

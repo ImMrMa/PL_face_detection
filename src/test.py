@@ -50,8 +50,8 @@ class PrefetchDataset(torch.utils.data.Dataset):
                 images[scale], meta[scale] = self.pre_process_func(
                     image, scale, img_info['calib'])
             else:
-                if index==3002:
-                    scale*=0.5
+                if (image.shape[0]*image.shape[1])**0.5>=1512:
+                    scale*=1512/((image.shape[0]*image.shape[1])**0.5)
                 images[scale], meta[scale] = self.pre_process_func(
                     image, scale)
         return image_id, {'images': images, 'image': image, 'meta': meta,'img_path':img_path}

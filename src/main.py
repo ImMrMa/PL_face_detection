@@ -14,8 +14,8 @@ from models.data_parallel import DataParallel
 from logger import Logger
 from datasets.dataset_factory import get_dataset
 from trains.train_factory import train_factory
-from obj_spec import multi_data
 from utils.widerface import WIDERDetection, detection_collate
+
 
 def main(opt):
     torch.manual_seed(opt.seed)
@@ -31,48 +31,29 @@ def main(opt):
 
     print('Creating model...')
     model = create_model(opt.arch, opt.heads, opt.head_conv)
-    for k,v in model.named_parameters():
-        print(k,v.requires_grad)
-    optimizer = torch.optim.Adam(model.parameters(), opt.lr)
+    if opt.optim == 'sgd':
+        optimizer = torch.optim.SGD(model.parameters(),
+                                    lr=opt.lr,
+                                    momentum=0.9)
+    elif opt.optim == 'adam':
+        optimizer = torch.optim.Adam(model.parameters(), opt.lr)
     start_epoch = 0
     if opt.load_model != '':
-        model, optimizer, start_epoch = load_model(
-            model, opt.load_model, optimizer, opt.resume, opt.lr, opt.lr_step)
-    # for k,v in model.named_parameters():
-    #     if 'bn' in k:
-    #         v.requires_grad=False
-    #     print(k,v.requires_grad)
-    # params=torch.load('/home/mayx/project/github/CenterNet/exp/ctdet/pascal_resnet18_rgb_ori_20/model_best.pth',map_location='cpu')['state_dict']
-    # model.load_state_dict(params)
+        model, optimizer, start_epoch = load_model(model, opt.load_model,
+                                                   optimizer, opt.resume,
+                                                   opt.lr, opt.lr_step)
     Trainer = train_factory[opt.task]
     trainer = Trainer(opt, model, optimizer)
     trainer.set_device(opt.gpus, opt.chunk_sizes, opt.device)
-
+    if opt.optim == 'sgd':
+        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+            optimizer,
+            'min',
+            factor=opt.lr_factor,
+            patience=5,
+            min_lr=1e-6,
+            verbose=True)
     print('Setting up data...')
-    def default_collate(batches):
-        batch_hm=[]
-        batch_wh=[]
-        batch_offset=[]
-        batch_mask=[]
-        for i in range(4):
-            batch_hm.append([])
-            batch_offset.append([])
-            batch_wh.append([])
-            batch_mask.append([])
-        for batch in batches:
-            for i in range(4):
-                batch_hm[i].append(batch['hm'][i])
-                batch_wh[i].append(batch['wh'][i])
-                batch_offset[i].append(batch['offset'][i])
-                batch_mask[i].append(batch['mask'][i])
-        batch=dict()
-        batch['hm']=[torch.tensor(i) for i in batch_hm]
-        batch['wh']=[torch.tensor(i) for i in batch_wh]
-        batch['offset']=[torch.tensor(i) for i in batch_offset]
-        batch['mask']=[torch.tensor(i) for i in batch_mask]
-        data=[i['input'] for i in batches]
-        batch['input']=torch.stack([i['input'] for i in batches],0)
-        return batch
     val_loader = torch.utils.data.DataLoader(
         Dataset(opt, 'val'),
         batch_size=1,
@@ -81,24 +62,19 @@ def main(opt):
         pin_memory=False,
         # collate_fn=default_collate
     )
-
     if opt.test:
         _, preds = trainer.val(0, val_loader)
         val_loader.dataset.run_eval(preds, opt.save_dir)
         return
-    if opt.multi_res:
-        print('yes')
-        train_loader=multi_data()
-    else:
-        train_loader = torch.utils.data.DataLoader(
-            Dataset(opt, 'train'),
-            batch_size=opt.batch_size,
-            shuffle=True,
-            num_workers=opt.num_workers,
-            pin_memory=True,
-            drop_last=True,
-            # collate_fn=default_collate
-        )
+    train_loader = torch.utils.data.DataLoader(
+        Dataset(opt, 'train'),
+        batch_size=opt.batch_size,
+        shuffle=True,
+        num_workers=opt.num_workers,
+        pin_memory=True,
+        drop_last=True,
+        # collate_fn=default_collate
+    )
     print('Starting training...')
     best = 1e10
     for epoch in range(start_epoch + 1, opt.num_epochs + 1):
@@ -118,16 +94,20 @@ def main(opt):
                 logger.write('{} {:8f} | '.format(k, v))
             if log_dict_val[opt.metric] < best:
                 best = log_dict_val[opt.metric]
-                save_model(os.path.join(opt.save_dir, 'model_best.pth'),
-                           epoch, model)
+                save_model(os.path.join(opt.save_dir, 'model_best.pth'), epoch,
+                           model)
         else:
-            save_model(os.path.join(opt.save_dir, 'model_last.pth'),
-                       epoch, model, optimizer)
+            save_model(os.path.join(opt.save_dir, 'model_last.pth'), epoch,
+                       model, optimizer)
         logger.write('\n')
-        if epoch in opt.lr_step:
-            save_model(os.path.join(opt.save_dir, 'model_{}.pth'.format(epoch)),
-                       epoch, model, optimizer)
-            lr = opt.lr * (opt.lr_dc ** (opt.lr_step.index(epoch) + 1))
+        if opt.optim == 'sgd':
+            scheduler.step(log_dict_train['loss'])
+        elif epoch in opt.lr_step:
+            save_model(
+                os.path.join(opt.save_dir, 'model_{}.pth'.format(epoch)),
+                epoch, model, optimizer)
+
+            lr = opt.lr * (opt.lr_factor**(opt.lr_step.index(epoch) + 1))
             print('Drop LR to', lr)
             for param_group in optimizer.param_groups:
                 param_group['lr'] = lr
