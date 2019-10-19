@@ -25,6 +25,11 @@ def conv3x3(in_planes, out_planes, stride=1, groups=1, dilation=1):
     return nn.Conv2d(in_planes, out_planes, kernel_size=3, stride=stride,
                      padding=dilation, groups=groups, bias=False, dilation=dilation)
 
+def conv4x4(in_planes, out_planes, stride=1, groups=1, dilation=1):
+    """3x3 convolution with padding"""
+    return nn.Conv2d(in_planes, out_planes, kernel_size=4, stride=stride,
+                     padding=dilation, groups=groups, bias=False, dilation=dilation)
+
 
 def conv1x1(in_planes, out_planes, stride=1):
     """1x1 convolution"""
@@ -47,7 +52,7 @@ class BasicBlock(nn.Module):
     expansion = 1
 
     def __init__(self, inplanes, planes, stride=1, downsample=None, groups=1,
-                 base_width=64, dilation=1, norm_layer=None):
+                 base_width=64, dilation=1, norm_layer=None,conv4=False):
         super(BasicBlock, self).__init__()
         if norm_layer is None:
             norm_layer = nn.BatchNorm2d
@@ -56,7 +61,10 @@ class BasicBlock(nn.Module):
         # if dilation > 1:
         #     raise NotImplementedError("Dilation > 1 not supported in BasicBlock")
         # Both self.conv1 and self.downsample layers downsample the input when stride != 1
-        self.conv1 = conv3x3(inplanes, planes, stride,dilation=dilation)
+        if conv4 and dilation==1:
+            self.conv1=conv4x4(inplanes,planes,stride,dilation=dilation)
+        else:
+            self.conv1 = conv3x3(inplanes, planes, stride,dilation=dilation)
         self.bn1 = norm_layer(planes)
         self.relu = nn.ReLU(inplace=True)
         self.conv2 = conv3x3(planes, planes)
@@ -87,7 +95,7 @@ class Bottleneck(nn.Module):
     expansion = 4
 
     def __init__(self, inplanes, planes, stride=1, downsample=None, groups=1,
-                 base_width=64, dilation=1, norm_layer=None):
+                 base_width=64, dilation=1, norm_layer=None,conv4=False):
         super(Bottleneck, self).__init__()
         if norm_layer is None:
             norm_layer = nn.BatchNorm2d
@@ -95,7 +103,10 @@ class Bottleneck(nn.Module):
         # Both self.conv2 and self.downsample layers downsample the input when stride != 1
         self.conv1 = conv1x1(inplanes, width)
         self.bn1 = norm_layer(width)
-        self.conv2 = conv3x3(width, width, stride, groups, dilation)
+        if conv4 and dilation==1:
+            self.conv2=conv4x4(width,width,stride,groups)
+        else:
+            self.conv2 = conv3x3(width, width, stride, groups, dilation)
         self.bn2 = norm_layer(width)
         self.conv3 = conv1x1(width, planes * self.expansion)
         self.bn3 = norm_layer(planes * self.expansion)
@@ -130,17 +141,15 @@ class ResNet(nn.Module):
 
     def __init__(self, block, layers, num_classes=1000, zero_init_residual=False,
                  groups=1, width_per_group=64, replace_stride_with_dilation=None,
-                 norm_layer=None):
+                 norm_layer=None,conv4=False):
         super(ResNet, self).__init__()
         if norm_layer is None:
             norm_layer = nn.BatchNorm2d
         self._norm_layer = norm_layer
         if block is BasicBlock:
             transform_planes=128
-            print('128')
         elif block is Bottleneck:
             transform_planes=256
-            print('256')
         else:
             raise ValueError('not block')
         self.inplanes = 64
@@ -162,10 +171,10 @@ class ResNet(nn.Module):
         self.layer1 = self._make_layer(block, 64, layers[0])
         self.inplanes_s2=self.inplanes
         self.layer2 = self._make_layer(block, 128, layers[1], stride=2,
-                                       dilate=replace_stride_with_dilation[0])
+                                       dilate=replace_stride_with_dilation[0],conv4=conv4)
         self.inplanes_s3=self.inplanes
         self.layer3 = self._make_layer(block, 256, layers[2], stride=2,
-                                       dilate=replace_stride_with_dilation[1])
+                                       dilate=replace_stride_with_dilation[1],conv4=conv4)
         self.inplanes_s4=self.inplanes                                       
         self.layer4 = self._make_layer(block, 512, layers[3], stride=2,
                                        dilate=replace_stride_with_dilation[2])
@@ -252,7 +261,7 @@ class ResNet(nn.Module):
         #         elif isinstance(m, BasicBlock):
         #             nn.init.constant_(m.bn2.weight, 0)
 
-    def _make_layer(self, block, planes, blocks, stride=1, dilate=False):
+    def _make_layer(self, block, planes, blocks, stride=1, dilate=False,conv4=False):
         norm_layer = self._norm_layer
         downsample = None
         previous_dilation = self.dilation
@@ -267,7 +276,7 @@ class ResNet(nn.Module):
 
         layers = []
         layers.append(block(self.inplanes, planes, stride, downsample, self.groups,
-                            self.base_width, previous_dilation, norm_layer))
+                            self.base_width, previous_dilation, norm_layer,conv4=conv4))
         self.inplanes = planes * block.expansion
         for _ in range(1, blocks):
             layers.append(block(self.inplanes, planes, groups=self.groups,
@@ -309,11 +318,17 @@ class ResNet(nn.Module):
                 return
             model_dict = self.state_dict()
             pretrained_dict = {k: v for k, v in pretrained_dict.items()
-                            if k in model_dict.keys()}   
+                            if k in model_dict.keys() and v.shape==model_dict[k].shape}
             for k,v in self.named_parameters():
-                v.requires_grad=False
-                if 'layer2' in k:
-                    break
+                print(k,v.shape)   
+            input('s')
+            for k,v in pretrained_dict.items():
+                print(k,v.shape)
+            input('s')
+            # for k,v in self.named_parameters():
+            #     v.requires_grad=False
+            #     if 'layer2' in k:
+            #         break
             for k,v in self.named_parameters():
                 if 'hm' in k:
                     print('hm')
@@ -324,6 +339,8 @@ class ResNet(nn.Module):
             self.load_state_dict(model_dict)
 def _resnet(arch, block, layers, pretrained, progress, **kwargs):
     model = ResNet(block, layers, **kwargs)
+    print(kwargs)
+    input('s')
     if pretrained:
         model.init_weights(pretrained=arch)
     return model
@@ -346,11 +363,11 @@ def resnet50(pretrained=True, progress=True, **kwargs):
         pretrained (bool): If True, returns a model pre-trained on ImageNet
         progress (bool): If True, displays a progress bar of the download to stderr
     """
-    return _resnet('resnet50', Bottleneck, [3, 4, 6, 3], pretrained, progress,replace_stride_with_dilation=[False,False,True]
+    return _resnet('resnet50', Bottleneck, [3, 4, 6, 3], pretrained, progress,replace_stride_with_dilation=[False,False,True],**kwargs
                    )              
 def test():
     import torch
-    net=resnet18()
+    net=resnet18(conv4=True)
     for k,v in net.named_parameters():
         print(k)
     print(net)
