@@ -48,16 +48,15 @@ def main(opt):
                                 lr=opt.lr,
                                 momentum=0.9)
     trainer.set_device(opt.gpus, opt.chunk_sizes, opt.device)
-    if opt.optim == 'sgd':  
-        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-            optimizer,
-            'min',
-            threshold=1e-4,
-            threshold_mode='abs',
-            factor=opt.lr_factor,
-            patience=2,
-            min_lr=1e-6,
-            verbose=True)
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+        optimizer,
+        'min',
+        threshold=1e-4,
+        threshold_mode='abs',
+        factor=opt.lr_factor,
+        patience=2,
+        min_lr=1e-6,
+        verbose=True)
     print('Setting up data...')
     val_loader = torch.utils.data.DataLoader(
         Dataset(opt, 'val'),
@@ -76,7 +75,7 @@ def main(opt):
         batch_size=opt.batch_size,
         shuffle=True,
         num_workers=opt.num_workers,
-        pin_memory=False,
+        pin_memory=True,
         drop_last=True,
         # collate_fn=default_collate
     )
@@ -105,20 +104,20 @@ def main(opt):
             save_model(os.path.join(opt.save_dir, 'model_last.pth'), epoch,
                        model, optimizer)
         logger.write('\n')
-        if opt.optim == 'sgd':
+    # if opt.optim == 'sgd':
 
-            scheduler.step(log_dict_train['loss'])
-            if epoch % 3== 0:
-                save_model(os.path.join(opt.save_dir, 'model_{}.pth').format(epoch),epoch,
-                        model, optimizer)
-        elif epoch in opt.lr_step:
-            save_model(
-                os.path.join(opt.save_dir, 'model_{}.pth'.format(epoch)),
-                epoch, model, optimizer)
-            lr = opt.lr * (opt.lr_factor**(opt.lr_step.index(epoch) + 1))
-            print('Drop LR to', lr)
-            for param_group in optimizer.param_groups:
-                param_group['lr'] = lr
+        scheduler.step(log_dict_train['loss'])
+        if epoch % 3== 0:
+            save_model(os.path.join(opt.save_dir, 'model_{}.pth').format(epoch),epoch,
+                    model, optimizer)
+        # elif epoch in opt.lr_step:
+        #     save_model(
+        #         os.path.join(opt.save_dir, 'model_{}.pth'.format(epoch)),
+        #         epoch, model, optimizer)
+        #     lr = opt.lr * (opt.lr_factor**(opt.lr_step.index(epoch) + 1))
+        #     print('Drop LR to', lr)
+        #     for param_group in optimizer.param_groups:
+        #         param_group['lr'] = lr
     logger.close()
 
 

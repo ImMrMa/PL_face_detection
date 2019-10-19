@@ -71,7 +71,7 @@ class BaseTrainer(object):
                     if isinstance(batch[k], list):
                         for i in range(len(batch[k])):
                             batch[k][i] = batch[k][i].to(device=opt.device,
-                                           non_blocking=True)
+                                           non_blocking=True)   
                     else:
                         batch[k] = batch[k].to(device=opt.device,
                                                non_blocking=True)
@@ -91,17 +91,16 @@ class BaseTrainer(object):
                 phase=phase,
                 total=bar.elapsed_td,
                 eta=bar.eta_td)
-            for l in avg_loss_stats:
-                avg_loss_stats[l].update(loss_stats[l].mean().item(),
-                                         batch['input'].size(0))
-                Bar.suffix = Bar.suffix + '|{} {:.4f} '.format(
-                    l, avg_loss_stats[l].avg)
-            if not opt.hide_data_time:
-                Bar.suffix = Bar.suffix + '|Data {dt.val:.3f}s({dt.avg:.3f}s) ' \
-                  '|Net {bt.avg:.3f}s'.format(dt=data_time, bt=batch_time)
-            if opt.print_iter > 0:
-                if iter_id % opt.print_iter == 0:
-                    print('{}/{}| {}'.format(opt.task, opt.exp_id, Bar.suffix))
+            if iter_id%20==0:
+                for l in avg_loss_stats:
+                    avg_loss_stats[l].update(float(loss_stats[l].mean()),
+                                            batch['input'].size(0))
+                    Bar.suffix = Bar.suffix + '|{} {:.4f} '.format(
+                        l, avg_loss_stats[l].avg)
+                if not opt.hide_data_time:
+                    Bar.suffix = Bar.suffix + '|Data {dt.val:.3f}s({dt.avg:.3f}s) ' \
+                    '|Net {bt.avg:.3f}s'.format(dt=data_time, bt=batch_time)
+                print('{}/{}| {}'.format(opt.task, opt.exp_id, Bar.suffix))
             else:
                 bar.next()
 
@@ -110,7 +109,6 @@ class BaseTrainer(object):
 
             if opt.test:
                 self.save_result(output, batch, results)
-            del output, loss, loss_stats
 
         bar.finish()
         ret = {k: v.avg for k, v in avg_loss_stats.items()}
