@@ -15,7 +15,7 @@ from .networks.large_hourglass import get_large_hourglass_net
 from .networks.deeplab import get_deeplabv3plus
 from .networks.hr_net import get_hr_net
 from .networks.hr_net_multi import get_hr_net as get_hr_net_v2
-from .networks.resnet_csp_fpn import resnet50
+from .networks.resnet_csp_fpn import resnet18
 _model_factory = {
     'res': get_pose_net,  # default Resnet with deconv
     'dlav0': get_dlav0,  # default DLAup
@@ -25,7 +25,7 @@ _model_factory = {
     'deeplab_resnet101':get_deeplabv3plus,
     'hrnet':get_hr_net,
     'hrnetv2':get_hr_net_v2,
-    'cspfpn':resnet50
+    'cspfpn':resnet18
 }
 
 

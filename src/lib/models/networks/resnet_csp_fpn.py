@@ -302,29 +302,34 @@ class ResNet(nn.Module):
     def init_weights(self, pretrained='',):
             if osp.isfile(pretrained):
                 pretrained_dict = torch.load(pretrained)
+            elif pretrained:
+                pretrained_dict=load_state_dict_from_url(model_urls[pretrained])
                 # self.load_state_dict(pretrained_dict)
-                model_dict = self.state_dict()
-                pretrained_dict = {k: v for k, v in pretrained_dict.items()
-                                if k in model_dict.keys()}   
-                for k,v in self.named_parameters():
-                    v.requires_grad=False
-                    if 'layer2' in k:
-                        break
-                for k,v in self.named_parameters():
-                    if 'hm' in k:
-                        print('hm')
-                        if 'bias' in k:
-                            pretrained_dict[k]=torch.ones_like(v) * -math.log((1 - 0.01) / 0.01)
-                    print(k,v.requires_grad)                        
-                model_dict.update(pretrained_dict)
-                self.load_state_dict(model_dict)
+            else:
+                return
+            model_dict = self.state_dict()
+            pretrained_dict = {k: v for k, v in pretrained_dict.items()
+                            if k in model_dict.keys()}   
+            for k,v in self.named_parameters():
+                v.requires_grad=False
+                if 'layer2' in k:
+                    break
+            for k,v in self.named_parameters():
+                if 'hm' in k:
+                    print('hm')
+                    if 'bias' in k:
+                        pretrained_dict[k]=torch.ones_like(v) * -math.log((1 - 0.01) / 0.01)
+                print(k,v.requires_grad)                        
+            model_dict.update(pretrained_dict)
+            self.load_state_dict(model_dict)
 def _resnet(arch, block, layers, pretrained, progress, **kwargs):
     model = ResNet(block, layers, **kwargs)
-    model.init_weights(pretrained=pretrained)
+    if pretrained:
+        model.init_weights(pretrained=arch)
     return model
 
 
-def resnet18(pretrained=False, progress=True, **kwargs):
+def resnet18(pretrained=True, progress=True, **kwargs):
     """Constructs a ResNet-18 model.
 
     Args:
@@ -334,14 +339,14 @@ def resnet18(pretrained=False, progress=True, **kwargs):
     return _resnet('resnet18', BasicBlock, [2, 2, 2, 2], pretrained, progress,replace_stride_with_dilation=[False,False,True],
                    **kwargs)
 
-def resnet50(pretrained=False, progress=True, **kwargs):
+def resnet50(pretrained=True, progress=True, **kwargs):
     """Constructs a ResNet-50 model.
 
     Args:
         pretrained (bool): If True, returns a model pre-trained on ImageNet
         progress (bool): If True, displays a progress bar of the download to stderr
     """
-    return _resnet('resnet50', Bottleneck, [3, 4, 6, 3], '/home/mayx/project/CenterNet/models/resnet50-19c8e357.pth', progress,replace_stride_with_dilation=[False,False,True]
+    return _resnet('resnet50', Bottleneck, [3, 4, 6, 3], pretrained, progress,replace_stride_with_dilation=[False,False,True]
                    )              
 def test():
     import torch

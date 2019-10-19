@@ -49,7 +49,7 @@ def main(opt):
         scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
             optimizer,
             'min',
-            threshold=1e-3,
+            threshold=1e-4,
             threshold_mode='abs',
             factor=opt.lr_factor,
             patience=2,
@@ -108,7 +108,6 @@ def main(opt):
             save_model(
                 os.path.join(opt.save_dir, 'model_{}.pth'.format(epoch)),
                 epoch, model, optimizer)
-
             lr = opt.lr * (opt.lr_factor**(opt.lr_step.index(epoch) + 1))
             print('Drop LR to', lr)
             for param_group in optimizer.param_groups:
