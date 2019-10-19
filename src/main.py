@@ -39,11 +39,14 @@ def main(opt):
         optimizer = torch.optim.Adam(model.parameters(), opt.lr)
     start_epoch = 0
     if opt.load_model != '':
-        model, optimizer, start_epoch = load_model(model, opt.load_model,
+        model, _, start_epoch = load_model(model, opt.load_model,
                                                    optimizer, opt.resume,
                                                    opt.lr, opt.lr_step)
     Trainer = train_factory[opt.task]
     trainer = Trainer(opt, model, optimizer)
+    optimizer = torch.optim.SGD(model.parameters(),
+                                lr=opt.lr,
+                                momentum=0.9)
     trainer.set_device(opt.gpus, opt.chunk_sizes, opt.device)
     if opt.optim == 'sgd':  
         scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
@@ -103,7 +106,11 @@ def main(opt):
                        model, optimizer)
         logger.write('\n')
         if opt.optim == 'sgd':
+
             scheduler.step(log_dict_train['loss'])
+            if epoch % 3== 0:
+                save_model(os.path.join(opt.save_dir, 'model_{}.pth').format(epoch),epoch,
+                        model, optimizer)
         elif epoch in opt.lr_step:
             save_model(
                 os.path.join(opt.save_dir, 'model_{}.pth'.format(epoch)),
