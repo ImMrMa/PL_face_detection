@@ -53,10 +53,10 @@ class BasicBlock(nn.Module):
             norm_layer = nn.BatchNorm2d
         if groups != 1 or base_width != 64:
             raise ValueError('BasicBlock only supports groups=1 and base_width=64')
-        if dilation > 1:
-            raise NotImplementedError("Dilation > 1 not supported in BasicBlock")
+        # if dilation > 1:
+        #     raise NotImplementedError("Dilation > 1 not supported in BasicBlock")
         # Both self.conv1 and self.downsample layers downsample the input when stride != 1
-        self.conv1 = conv3x3(inplanes, planes, stride)
+        self.conv1 = conv3x3(inplanes, planes, stride,dilation=dilation)
         self.bn1 = norm_layer(planes)
         self.relu = nn.ReLU(inplace=True)
         self.conv2 = conv3x3(planes, planes)
@@ -135,7 +135,14 @@ class ResNet(nn.Module):
         if norm_layer is None:
             norm_layer = nn.BatchNorm2d
         self._norm_layer = norm_layer
-
+        if block is BasicBlock:
+            transform_planes=128
+            print('128')
+        elif block is Bottleneck:
+            transform_planes=256
+            print('256')
+        else:
+            raise ValueError('not block')
         self.inplanes = 64
         self.dilation = 1
         if replace_stride_with_dilation is None:
@@ -153,53 +160,57 @@ class ResNet(nn.Module):
         self.relu = nn.ReLU(inplace=True)
         self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
         self.layer1 = self._make_layer(block, 64, layers[0])
+        self.inplanes_s2=self.inplanes
         self.layer2 = self._make_layer(block, 128, layers[1], stride=2,
                                        dilate=replace_stride_with_dilation[0])
+        self.inplanes_s3=self.inplanes
         self.layer3 = self._make_layer(block, 256, layers[2], stride=2,
                                        dilate=replace_stride_with_dilation[1])
+        self.inplanes_s4=self.inplanes                                       
         self.layer4 = self._make_layer(block, 512, layers[3], stride=2,
                                        dilate=replace_stride_with_dilation[2])
+        self.inplanes_s5=self.inplanes
         self.s3_up=nn.ConvTranspose2d(
-                    in_channels=512,
-                    out_channels=256,
+                    in_channels=self.inplanes_s3,
+                    out_channels=transform_planes,
                     kernel_size=4,
                     stride=2,
                     padding=1,
                     output_padding=0,
                     bias=False)
         self.s4_up=nn.ConvTranspose2d(
-                    in_channels=1024,
-                    out_channels=256,
+                    in_channels=self.inplanes_s4,
+                    out_channels=transform_planes,
                     kernel_size=4,
                     stride=4,
                     padding=0,
                     output_padding=0,
                     bias=False)
         self.s5_up=nn.ConvTranspose2d(
-                    in_channels=2048,
-                    out_channels=256,
+                    in_channels=self.inplanes_s5,
+                    out_channels=transform_planes,
                     kernel_size=4,
                     stride=4,
                     padding=0,
                     output_padding=0,
                     bias=False)
-        self.n3=L2Norm(256)
-        self.n4=L2Norm(256)
-        self.n5=L2Norm(256)
+        self.n3=L2Norm(transform_planes)
+        self.n4=L2Norm(transform_planes)
+        self.n5=L2Norm(transform_planes)
         self.s_conv=nn.Sequential(
             nn.Conv2d(
-            in_channels=768,
-            out_channels=256,
+            in_channels=transform_planes*3,
+            out_channels=transform_planes,
             kernel_size=3,
             stride=1,
             padding=1,
             bias=False
         ),
-            norm_layer(256),
+            norm_layer(transform_planes),
             nn.ReLU(inplace=True))
         self.hm=nn.Sequential(
             nn.Conv2d(
-            in_channels=256,
+            in_channels=transform_planes,
             out_channels=1,
             kernel_size=1,
             stride=1,
@@ -209,7 +220,7 @@ class ResNet(nn.Module):
         )   
         self.wh=nn.Sequential(
             nn.Conv2d(
-            in_channels=256,
+            in_channels=transform_planes,
             out_channels=2,
             kernel_size=1,
             stride=1,
@@ -217,7 +228,7 @@ class ResNet(nn.Module):
         ))
         self.offset=nn.Sequential(
             nn.Conv2d(
-            in_channels=256,
+            in_channels=transform_planes,
             out_channels=2,
             kernel_size=1,
             stride=1,
@@ -309,7 +320,7 @@ class ResNet(nn.Module):
                 self.load_state_dict(model_dict)
 def _resnet(arch, block, layers, pretrained, progress, **kwargs):
     model = ResNet(block, layers, **kwargs)
-    model.init_weights(pretrained='/home/mayx/project/CenterNet/models/resnet50-19c8e357.pth')
+    model.init_weights(pretrained=pretrained)
     return model
 
 
@@ -330,11 +341,11 @@ def resnet50(pretrained=False, progress=True, **kwargs):
         pretrained (bool): If True, returns a model pre-trained on ImageNet
         progress (bool): If True, displays a progress bar of the download to stderr
     """
-    return _resnet('resnet50', Bottleneck, [3, 4, 6, 3], pretrained, progress,replace_stride_with_dilation=[False,False,True]
+    return _resnet('resnet50', Bottleneck, [3, 4, 6, 3], '/home/mayx/project/CenterNet/models/resnet50-19c8e357.pth', progress,replace_stride_with_dilation=[False,False,True]
                    )              
 def test():
     import torch
-    net=resnet50()
+    net=resnet18()
     for k,v in net.named_parameters():
         print(k)
     print(net)
