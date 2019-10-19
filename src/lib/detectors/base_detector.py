@@ -110,16 +110,14 @@ class BaseDetector(object):
         img_path=pre_processed_images['img_path'][0]
         
         for scale in self.scales:
-            if img_path=='/public/widerface/WIDER/WIDER_val/images/6--Funeral/6_Funeral_Funeral_6_618.jpg':
-                scale*=0.5
-                print(scale)
             scale_start_time = time.time()
             if not pre_processed:
                 images, meta = self.pre_process(image, scale, meta)
             else:
                 # import pdb; pdb.set_trace()
-                images = pre_processed_images['images'][scale][0]
-                meta = pre_processed_images['meta'][scale]
+                scale_p=float(pre_processed_images['scale_p'])
+                images = pre_processed_images['images'][scale*scale_p][0]
+                meta = pre_processed_images['meta'][scale*scale_p]
                 meta = {k: v.numpy()[0] for k, v in meta.items()}
             images = images.to(self.opt.device)
             torch.cuda.synchronize()

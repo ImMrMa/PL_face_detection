@@ -171,8 +171,12 @@ def augment_wider(img_data, c):
         s_face = np.sqrt((gts[sel_id, 2] - gts[sel_id, 0]) * (gts[sel_id, 3] - gts[sel_id, 1]))
         index = np.random.randint(0, np.argmin(np.abs(scales - s_face)) + 1)
         s_tar = np.random.uniform(np.power(2, 4 + index)*1.5, np.power(2, 4 + index) * 2)
-        ratio = s_tar / s_face
-        new_height, new_width = int(ratio * img_height), int(ratio * img_width)
+        ratio = round(s_tar / s_face,4)
+        try:
+            new_height, new_width = int(ratio * img_height), int(ratio * img_width)
+        except:
+            print(ratio,s_face,gts[sel_id],img_height,img_width)    
+            input('s')
         img = cv2.resize(img, (new_width, new_height))
         gts = np.asarray(gts, dtype=float) * ratio
 

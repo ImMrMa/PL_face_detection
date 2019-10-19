@@ -696,6 +696,7 @@ def get_hr_net(**kwargs):
                STAGE3=stage3,
                STAGE4=stage4,
                pretrained='../models/hrnet_w18_small_model_v2.pth')
+    input('s')
     model = HighResolutionNet(cfg, **kwargs)
     model.init_weights(cfg['pretrained'])
 

@@ -12,12 +12,13 @@ from src.lib.models.networks.resnet_csp_fpn import resnet50
 def get_model(pretrained_path=None):
     model = resnet50()
     if pretrained_path:
-        torch.load(pretrained_path, map_location='cpu')
+        print('loading weight!')
+        model_dict=torch.load(pretrained_path, map_location='cpu')['state_dict']
         model.load_state_dict(model_dict)
     return model
 
 
-def parse_wider_offset(Y, score=0.1, down=4, nmsthre=0.5):
+def parse_wider_offset(Y,img_h_new,img_w_new, score=0.1, down=4, nmsthre=0.5):
     seman = Y[0][0, :, :, 0]
     height = Y[1][0, :, :, 0]
     width = Y[1][0, :, :, 1]
@@ -34,11 +35,11 @@ def parse_wider_offset(Y, score=0.1, down=4, nmsthre=0.5):
             s = seman[y_c[i], x_c[i]]
             x1, y1 = max(0, (x_c[i] + o_x + 0.5) * down - w / 2), max(
                 0, (y_c[i] + o_y + 0.5) * down - h / 2)
-            x1, y1 = min(x1, C.size_test[1]), min(y1, C.size_test[0])
+            x1, y1 = min(x1, img_w_new), min(y1, img_h_new)
             boxs.append([
                 x1, y1,
-                min(x1 + w, C.size_test[1]),
-                min(y1 + h, C.size_test[0]), s
+                min(x1 + w, img_w_new),
+                min(y1 + h, img_h_new), s
             ])
         boxs = np.asarray(boxs, dtype=np.float32)
         # keep = nms(boxs, nmsthre, usegpu=False, gpu_id=0)
@@ -104,21 +105,16 @@ def soft_bbox_vote(det, thre=0.35, score=0.05):
     return dets
 
 
-def pre_process(img):
-    img = imgimg = img.astype(np.float32)
-    img = img / 255
-    img = img[..., [2, 1, 0]]
-    img = (img - self.mean) / self.std
-    img = torch.tensor(img).unsqueeze(0)
+
 
 
 mean = np.array([0.485, 0.456, 0.406]).reshape(1, 1, 3).astype(np.float32)
 std = np.array([0.229, 0.224, 0.225]).reshape(1, 1, 3).astype(np.float32)
 
-os.environ["CUDA_VISIBLE_DEVICES"] = '2'
+os.environ["CUDA_VISIBLE_DEVICES"] = '0'
 cache_path = 'data/cache/widerface/val'
-out_path = 'data/eval/_first'
-pretrained_path = ''
+out_path = 'data/eval/_third'
+pretrained_path = '/data/users/mayx/project/github/CenterNet/models/model_last.pth'
 with open(cache_path, 'rb') as fid:
     val_data = pickle.load(fid, encoding='latin1')
 num_imgs = len(val_data)
@@ -149,6 +145,15 @@ for f in tqdm(range(num_imgs)):
         continue
     img = cv2.imread(filepath)
 
+    def pre_process(img):
+
+        img = img.astype(np.float32)
+        img = img / 255
+        img = img[..., [2, 1, 0]]
+        img = (img - mean) / std
+        img = torch.tensor(img).permute(2,0,1).unsqueeze(0)
+        return img
+
     def detect_face(img, scale=1, flip=False):
         img_h, img_w = img.shape[:2]
         img_h_new, img_w_new = int(np.ceil(scale * img_h / 16) * 16), int(
@@ -163,8 +168,7 @@ for f in tqdm(range(num_imgs)):
                            interpolation=cv2.INTER_LINEAR)
         # img_h, img_w = img_s.shape[:2]
         # print frame_number
-        C.size_test[0] = img_h_new
-        C.size_test[1] = img_w_new
+
 
         if flip:
             img_ = cv2.flip(img_s, 1)
@@ -172,10 +176,11 @@ for f in tqdm(range(num_imgs)):
             img = pre_process(img_)
         else:
             # x_rcnn = format_img_pad(img_s, C)
-            img = format_img(img_s, C)
+            img = pre_process(img_s)
         with torch.no_grad():
-            output = model(img)
-        boxes = parse_wider_offset(output.cpu().numpy(),
+            output = model(img.cuda())
+            output=[output['hm'].cpu().detach().permute(0,2,3,1).numpy(),output['wh'].cpu().detach().permute(0,2,3,1).numpy(),output['offset'].cpu().detach().permute(0,2,3,1).numpy()]
+        boxes = parse_wider_offset(output,img_h_new,img_w_new,
                                    score=0.05,
                                    nmsthre=0.6)
         if len(boxes) > 0:
@@ -262,10 +267,11 @@ for f in tqdm(range(num_imgs)):
         (img.shape[0] * img.shape[1]))**0.5  # the max size of input image
     shrink = max_im_shrink if max_im_shrink < 1 else 1
     det0 = detect_face(img)
-    det1 = detect_face(img, flip=True)
-    det2 = im_det_ms_pyramid(img, max_im_shrink)
+    # det1 = detect_face(img, flip=True)
+    # det2 = im_det_ms_pyramid(img, max_im_shrink)
     # merge all test results via bounding box voting
-    det = np.row_stack((det0, det1, det2))
+    # det = np.row_stack((det0, det1, det2))
+    det=det0
     keep_index = np.where(
         np.minimum(det[:, 2] - det[:, 0], det[:, 3] - det[:, 1]) >= 3)[0]
     det = det[keep_index, :]

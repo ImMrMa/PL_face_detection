@@ -7,7 +7,7 @@ clear;
 close all;
 addpath(genpath('./plot'));
 %Please specify your prediction directory.
-pred_dir = '/home/mayx/project/CenterNet/src/hhhhh';
+pred_dir = '/data/users/mayx/project/github/CenterNet/data/eval/_third';
 gt_dir = './ground_truth/wider_face_val.mat';
 %preprocessing
 pred_list = read_pred(pred_dir,gt_dir);
@@ -18,7 +18,7 @@ setting_name_list = {'easy_val';'medium_val';'hard_val'};
 setting_class = 'setting_int';
 
 %Please specify your algorithm name.
-legend_name = 'centerface.pytorch';
+legend_name = 'csp.pytorch_10.47';
 for i = 1:size(setting_name_list,1)
     fprintf('Current evaluation setting %s\n',setting_name_list{i});
     setting_name = setting_name_list{i};

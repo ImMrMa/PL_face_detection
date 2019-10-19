@@ -45,12 +45,14 @@ def main(opt):
     Trainer = train_factory[opt.task]
     trainer = Trainer(opt, model, optimizer)
     trainer.set_device(opt.gpus, opt.chunk_sizes, opt.device)
-    if opt.optim == 'sgd':
+    if opt.optim == 'sgd':  
         scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
             optimizer,
             'min',
+            threshold=1e-3,
+            threshold_mode='abs',
             factor=opt.lr_factor,
-            patience=5,
+            patience=2,
             min_lr=1e-6,
             verbose=True)
     print('Setting up data...')
@@ -71,7 +73,7 @@ def main(opt):
         batch_size=opt.batch_size,
         shuffle=True,
         num_workers=opt.num_workers,
-        pin_memory=True,
+        pin_memory=False,
         drop_last=True,
         # collate_fn=default_collate
     )

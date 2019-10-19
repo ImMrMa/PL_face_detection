@@ -4,9 +4,9 @@
 # Licensed under The MIT License [see LICENSE for details]
 # Written by Ross Girshick
 # --------------------------------------------------------
-
-# from nms.gpu_nms import gpu_nms
-from nms.cpu_nms import cpu_nms
+import pyximport; pyximport.install()
+from tools.nms.gpu_nms import gpu_nms
+from tools.nms.cpu_nms import cpu_nms
 import numpy as np
 
 def soft_nms(dets, sigma=0.5, Nt=0.3, threshold=0.001, method=1):

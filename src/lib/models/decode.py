@@ -7,6 +7,7 @@ import torch.nn as nn
 from .utils import _gather_feat, _tranpose_and_gather_feat
 import math
 from torchvision import transforms
+import time
 def _nms(heat, kernel=3):
     pad = (kernel - 1) // 2
 
@@ -529,23 +530,17 @@ def ctdet_decode(heat, wh, reg=None, cat_spec_wh=False, K=100):
 
 def real_pixels(length, large=False):
     if not large:
-        if length <= 0.3:
-            pixels = 32 * (length / 0.3)
-        elif length <= 0.7:
-            pixels = ((length - 0.3) / 0.4) * 96 + 32
-        elif length <= 0.9:
-            pixels = ((length - 0.7) / 0.2) * 256 + 128
-        else:
-            pixels = ((length - 0.9) / 0.08) * 640 + 384
-        return pixels
+        mask_0=(length<=0.3).float()
+        mask_1=((length<=0.7)*(length>0.3)).float()
+        mask_2=((length<=0.9)*(length>0.7)).float()
+        mask_3=((length>0.9)).float()
+        length=mask_0*(32 * (length / 0.3))+mask_1*(((length - 0.3) / 0.4) * 96 + 32)+mask_2*(((length - 0.7) / 0.2) * 256 + 128)+mask_3*(((length - 0.9) / 0.08) * 640 + 384)
     else:
-        if length <= 0.3:
-            pixels = (64 * (length - 0.1) / 0.2) + 64
-        elif length <= 0.8:
-            pixels = ((length - 0.3) / 0.5) * 640 + 128
-        else:
-            pixels = ((length - 0.8) / 0.2) * 256 + 768
-        return pixels
+        mask_0=(length<=0.3).float()
+        mask_1=((length<=0.8)*(length>0.3)).float()
+        mask_2=(length>0.8).float()
+        length=mask_0*((64 * (length - 0.1) / 0.2) + 64)+mask_1*(((length - 0.3) / 0.5) * 640 + 128)+mask_2*(((length - 0.8) / 0.2) * 256 + 768)
+    return length
 
 
 def fadet_decode(heat, wh, reg=None, cat_spec_wh=False, p=0.1, large=False):
@@ -577,8 +572,7 @@ def fadet_decode(heat, wh, reg=None, cat_spec_wh=False, p=0.1, large=False):
         wh = wh.view(batch, K, 2)
 
     wh=wh.view(-1)
-    for index in range(len(wh)):
-        wh[index]=math.ceil(real_pixels(wh[index],large))
+    wh=real_pixels(wh,large)
     wh=wh.view(-1,2)
     if large:
         efficient_index=(wh[:,0]*wh[:,1])**0.5>=100

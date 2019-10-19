@@ -62,13 +62,13 @@ _C.NEG_POS_RATIOS = 3
 _C.NUM_CLASSES = 2
 
 # dataset config
-_C.HOME = '/public/widerface'
+_C.HOME = '../data/WIDER/'
 
 
 # face config
 _C.FACE = EasyDict()
-_C.FACE.TRAIN_FILE = '/public/widerface/WIDER/face_train.txt'
-_C.FACE.VAL_FILE = '/public/widerface/WIDER/face_val.txt'
+_C.FACE.TRAIN_FILE = '../data/WIDER/face_train.txt'
+_C.FACE.VAL_FILE = '../data/WIDER/face_val.txt'
 _C.FACE.FDDB_DIR = '/home/lijun/data/FDDB'
 _C.FACE.WIDER_DIR = '/home/lijun/data/WIDER'
 _C.FACE.AFW_DIR = '/home/lijun/data/AFW'
