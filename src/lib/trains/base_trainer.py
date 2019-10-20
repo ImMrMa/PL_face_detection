@@ -95,8 +95,11 @@ class BaseTrainer(object):
                 for l in avg_loss_stats:
                     avg_loss_stats[l].update(float(loss_stats[l].mean()),
                                             batch['input'].size(0))
-            Bar.suffix = Bar.suffix + '|{} {:.4f} '.format(
-                l, avg_loss_stats[l].avg)
+                    Bar.suffix = Bar.suffix + '|{} {:.4f} '.format(
+                        l, avg_loss_stats[l].avg)
+                    bar_tmp=Bar.suffix
+            else:
+                Bar.suffix=bar_tmp
             if not opt.hide_data_time:
                 Bar.suffix = Bar.suffix + '|Data {dt.val:.3f}s({dt.avg:.3f}s) ' \
                 '|Net {bt.avg:.3f}s'.format(dt=data_time, bt=batch_time)

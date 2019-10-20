@@ -6,11 +6,11 @@ import os.path as osp
 import cv2
 import numpy as np
 import torch
-from src.lib.models.networks.resnet_csp_fpn import resnet50
+from src.lib.models.networks.resnet_csp_fpn import resnet18 as net
 
 
 def get_model(pretrained_path=None):
-    model = resnet50()
+    model = net()
     if pretrained_path:
         print('loading weight!')
         model_dict=torch.load(pretrained_path, map_location='cpu')['state_dict']
@@ -113,7 +113,7 @@ std = np.array([0.229, 0.224, 0.225]).reshape(1, 1, 3).astype(np.float32)
 
 os.environ["CUDA_VISIBLE_DEVICES"] = '0'
 cache_path = 'data/cache/widerface/val'
-out_path = 'data/eval/_third'
+out_path = 'data/eval/resnet18_final'
 pretrained_path = '/data/users/mayx/project/github/CenterNet/models/model_last.pth'
 with open(cache_path, 'rb') as fid:
     val_data = pickle.load(fid, encoding='latin1')
