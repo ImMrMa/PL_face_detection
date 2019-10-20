@@ -44,9 +44,6 @@ def main(opt):
                                                    opt.lr, opt.lr_step)
     Trainer = train_factory[opt.task]
     trainer = Trainer(opt, model, optimizer)
-    optimizer = torch.optim.SGD(model.parameters(),
-                                lr=opt.lr,
-                                momentum=0.9)
     trainer.set_device(opt.gpus, opt.chunk_sizes, opt.device)
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
         optimizer,

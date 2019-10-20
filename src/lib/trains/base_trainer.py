@@ -91,18 +91,17 @@ class BaseTrainer(object):
                 phase=phase,
                 total=bar.elapsed_td,
                 eta=bar.eta_td)
-            if iter_id%20==0:
+            if iter_id%5==0:
                 for l in avg_loss_stats:
                     avg_loss_stats[l].update(float(loss_stats[l].mean()),
                                             batch['input'].size(0))
-                    Bar.suffix = Bar.suffix + '|{} {:.4f} '.format(
-                        l, avg_loss_stats[l].avg)
-                if not opt.hide_data_time:
-                    Bar.suffix = Bar.suffix + '|Data {dt.val:.3f}s({dt.avg:.3f}s) ' \
-                    '|Net {bt.avg:.3f}s'.format(dt=data_time, bt=batch_time)
-                print('{}/{}| {}'.format(opt.task, opt.exp_id, Bar.suffix))
-            else:
-                bar.next()
+            Bar.suffix = Bar.suffix + '|{} {:.4f} '.format(
+                l, avg_loss_stats[l].avg)
+            if not opt.hide_data_time:
+                Bar.suffix = Bar.suffix + '|Data {dt.val:.3f}s({dt.avg:.3f}s) ' \
+                '|Net {bt.avg:.3f}s'.format(dt=data_time, bt=batch_time)
+            # print('{}/{}| {}'.format(opt.task, opt.exp_id, Bar.suffix))
+            bar.next()
 
             if opt.debug > 0:
                 self.debug(batch, output, iter_id)

@@ -180,7 +180,7 @@ class ResNet(nn.Module):
                                bias=False),
                                norm_layer(self.inplanes),
                                nn.ReLU(inplace=True))
-            self.layeri1=self._make_layer(block,32,1,stride=1)
+            self.layeri1=self._make_layer(block,16,1,stride=1)
             self.layer0=self._make_layer(block,32,2,stride=2,conv2=conv2,conv4=conv4)
             self.layer1 = self._make_layer(block, 64, layers[0],stride=2,conv2=conv2,conv4=conv4)
         else:
@@ -337,6 +337,8 @@ class ResNet(nn.Module):
     def init_weights(self, pretrained='',):
             if osp.isfile(pretrained):
                 pretrained_dict = torch.load(pretrained)
+                if 'state_dict' in pretrained_dict.keys():
+                    pretrained_dict=pretrained_dict['state_dict']
             elif pretrained:
                 pretrained_dict=load_state_dict_from_url(model_urls[pretrained])
                 # self.load_state_dict(pretrained_dict)
@@ -351,10 +353,10 @@ class ResNet(nn.Module):
             for k,v in pretrained_dict.items():
                 print(k,v.shape)
             input('s')
-            for k,v in self.named_parameters():
-                v.requires_grad=False
-                if 'layer2' in k:
-                    break
+            # for k,v in self.named_parameters():
+            #     v.requires_grad=False
+            #     if 'layer2' in k:
+            #         break
             for k,v in self.named_parameters():
                 if 'hm' in k:
                     print('hm')
@@ -368,7 +370,7 @@ def _resnet(arch, block, layers, pretrained, progress, **kwargs):
     print(kwargs)
     input('s')
     if pretrained:
-        model.init_weights(pretrained=arch)
+        model.init_weights(pretrained='/home/mayx/project/CenterNet/exp/cspdet/wider_resnet18_csp_adam_change_s1_conv3/model_last.pth')
     return model
 
 
