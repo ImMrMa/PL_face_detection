@@ -20,7 +20,7 @@ model_urls = {
 }
 
 def group_norm(in_planes):
-    return nn.GroupNorm(in_planes//16)
+    return nn.GroupNorm(in_planes//16,in_planes)
 def conv3x3(in_planes, out_planes, stride=1, groups=1, dilation=1):
     """3x3 convolution with padding"""
     return nn.Conv2d(in_planes, out_planes, kernel_size=3, stride=stride,
@@ -61,10 +61,9 @@ class BasicBlock(nn.Module):
     expansion = 1
 
     def __init__(self, inplanes, planes, stride=1, downsample=None, groups=1,
-                 base_width=64, dilation=1, norm_layer=None, conv4=False, conv2=False):
+                 base_width=64, dilation=1, norm_layer=None, conv4=False, conv2=False,replace_with_bn=False):
         super(BasicBlock, self).__init__()
-        if norm_layer is None:
-            norm_layer = nn.BatchNorm2d
+        self.norm_layer=norm_layer
         if conv4 and conv2:
             raise ValueError('wrong!')
         if groups != 1 or base_width != 64:
@@ -79,7 +78,10 @@ class BasicBlock(nn.Module):
             self.conv1 = conv2x2(inplanes, planes, stride, dilation=dilation)
         else:
             self.conv1 = conv3x3(inplanes, planes, stride, dilation=dilation)
+        if replace_with_bn:
+            norm_layer=group_norm
         self.bn1 = norm_layer(planes)
+        norm_layer=self.norm_layer
         self.relu = nn.ReLU(inplace=True)
         self.conv2 = conv3x3(planes, planes)
         self.bn2 = norm_layer(planes)
@@ -371,30 +373,33 @@ class ResNet(nn.Module):
         elif pretrained:
             pretrained_dict = load_state_dict_from_url(model_urls[pretrained])
             # self.load_state_dict(pretrained_dict)
+        if pretrained:
+            pretrained_dict = {k: v for k, v in pretrained_dict.items()
+                            if k in model_dict.keys() and v.shape == model_dict[k].shape}
+
+            # for k,v in self.named_parameters():
+            #     v.requires_grad=False
+            #     if 'layer2' in k:
+            #         break
         else:
-            return
+            pretrained_dict=self.state_dict()
+
+        for k, v in self.named_parameters():
+            if 'hm' in k:
+                if 'bias' in k:
+                    pretrained_dict[k]= torch.ones_like(
+                        v) * -math.log((1 - 0.01) / 0.01)
+            print(k, v.requires_grad)
         model_dict = self.state_dict()
-        pretrained_dict = {k: v for k, v in pretrained_dict.items()
-                           if k in model_dict.keys() and v.shape == model_dict[k].shape}
+        model_dict.update(pretrained_dict)
+        self.load_state_dict(model_dict)
+        input('grad')
         for k, v in self.named_parameters():
             print(k, v.shape)
         input('model_parameters:')
         for k, v in pretrained_dict.items():
             print(k, v.shape)
         input('pretrained_parameters')
-        # for k,v in self.named_parameters():
-        #     v.requires_grad=False
-        #     if 'layer2' in k:
-        #         break
-        for k, v in self.named_parameters():
-            if 'hm' in k:
-                if 'bias' in k:
-                    pretrained_dict[k] = torch.ones_like(
-                        v) * -math.log((1 - 0.01) / 0.01)
-            print(k, v.requires_grad)
-        input('grad:')
-        model_dict.update(pretrained_dict)
-        self.load_state_dict(model_dict)
 
 
 def _resnet(arch, block, layers, pretrained, progress, **kwargs):
@@ -403,7 +408,7 @@ def _resnet(arch, block, layers, pretrained, progress, **kwargs):
     input('s')
     if pretrained:
         model.init_weights(
-            pretrained=arch)
+            pretrained='')
     return model
 
 

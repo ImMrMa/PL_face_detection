@@ -50,11 +50,11 @@ def main(opt):
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
         optimizer,
         'min',
-        threshold=1e-4,
+        threshold=1e-5,
         threshold_mode='abs',
         factor=opt.lr_factor,
-        patience=4,
-        min_lr=5e-5,
+        patience=5,
+        min_lr=8e-5,
         verbose=True)
     print('Setting up data...')
     val_loader = torch.utils.data.DataLoader(
