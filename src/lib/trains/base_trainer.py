@@ -91,9 +91,9 @@ class BaseTrainer(object):
                 phase=phase,
                 total=bar.elapsed_td,
                 eta=bar.eta_td)
-            if iter_id%5==0:
+            if iter_id%1==0:
                 for l in avg_loss_stats:
-                    avg_loss_stats[l].update(float(loss_stats[l].mean()),
+                    avg_loss_stats[l].update(loss_stats[l].mean().item(),
                                             batch['input'].size(0))
                     Bar.suffix = Bar.suffix + '|{} {:.4f} '.format(
                         l, avg_loss_stats[l].avg)

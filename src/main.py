@@ -39,9 +39,11 @@ def main(opt):
         optimizer = torch.optim.Adam(model.parameters(), opt.lr)
     start_epoch = 0
     if opt.load_model != '':
-        model, _, start_epoch = load_model(model, opt.load_model,
+        model, optimizer, start_epoch = load_model(model, opt.load_model,
                                                    optimizer, opt.resume,
                                                    opt.lr, opt.lr_step)
+        for param_group in optimizer.param_groups:
+                param_group['lr'] = opt.lr
     Trainer = train_factory[opt.task]
     trainer = Trainer(opt, model, optimizer)
     trainer.set_device(opt.gpus, opt.chunk_sizes, opt.device)
@@ -51,8 +53,8 @@ def main(opt):
         threshold=1e-4,
         threshold_mode='abs',
         factor=opt.lr_factor,
-        patience=2,
-        min_lr=1e-6,
+        patience=4,
+        min_lr=5e-5,
         verbose=True)
     print('Setting up data...')
     val_loader = torch.utils.data.DataLoader(
