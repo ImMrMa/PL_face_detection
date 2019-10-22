@@ -10,10 +10,13 @@ from src.lib.models.networks.resnet_csp_fpn import resnet18 as net
 
 
 def get_model(pretrained_path=None):
-    model = net()
+    model = net(conv4=True,conv4_conv2=True,all_gn=True,change_s1=True)
     if pretrained_path:
         print('loading weight!')
         model_dict=torch.load(pretrained_path, map_location='cpu')['state_dict']
+        for k,v in model_dict.items():
+            print(k,v.shape)
+        input('s')
         model.load_state_dict(model_dict)
     return model
 
@@ -113,8 +116,8 @@ std = np.array([0.229, 0.224, 0.225]).reshape(1, 1, 3).astype(np.float32)
 
 os.environ["CUDA_VISIBLE_DEVICES"] = '0'
 cache_path = 'data/cache/widerface/val'
-out_path = 'data/eval/resnet18_final'
-pretrained_path = '/data/users/mayx/project/github/CenterNet/models/model_last.pth'
+out_path = 'data/eval/resnet18_s1_conv4_conv2_gn_last_easy'
+pretrained_path = '/data/users/mayx/model_last_gn.pth'
 with open(cache_path, 'rb') as fid:
     val_data = pickle.load(fid, encoding='latin1')
 num_imgs = len(val_data)
@@ -222,7 +225,8 @@ for f in tqdm(range(num_imgs)):
         det_temp = det_temp[index, :]
         det_s = np.row_stack((det_s, det_temp))
 
-        st = [1.25, 1.5, 1.75, 2.0, 2.25]
+        # st = [1.25, 1.5, 1.75, 2.0, 2.25]
+        st =[0.75,0.5,0.25] 
         for i in range(len(st)):
             if (st[i] <= max_im_shrink):
                 det_temp = np.row_stack(
@@ -259,6 +263,18 @@ for f in tqdm(range(num_imgs)):
                                    1, det_temp[:, 3] - det_temp[:, 1] +
                                    1) < 32)[0]
                     det_temp = det_temp[index, :]
+                elif st[i] == 0.25:
+                    index = np.where(
+                        np.minimum(det_temp[:, 2] - det_temp[:, 0] +
+                                   1, det_temp[:, 3] - det_temp[:, 1] +
+                                   1) < 64)[0]
+                    det_temp = det_temp[index, :]
+                elif st[i] == 0.5:
+                    index = np.where(
+                        np.minimum(det_temp[:, 2] - det_temp[:, 0] +
+                                   1, det_temp[:, 3] - det_temp[:, 1] +
+                                   1) < 128)[0]
+                    det_temp = det_temp[index, :]
                 det_s = np.row_stack((det_s, det_temp))
         return det_s
 
@@ -267,11 +283,11 @@ for f in tqdm(range(num_imgs)):
         (img.shape[0] * img.shape[1]))**0.5  # the max size of input image
     shrink = max_im_shrink if max_im_shrink < 1 else 1
     det0 = detect_face(img)
-    # det1 = detect_face(img, flip=True)
-    # det2 = im_det_ms_pyramid(img, max_im_shrink)
+    det1 = detect_face(img, flip=True)
+    det2 = im_det_ms_pyramid(img, max_im_shrink)
     # merge all test results via bounding box voting
-    # det = np.row_stack((det0, det1, det2))
-    det=det0
+    det = np.row_stack((det0, det1, det2))
+    # det=det0
     keep_index = np.where(
         np.minimum(det[:, 2] - det[:, 0], det[:, 3] - det[:, 1]) >= 3)[0]
     det = det[keep_index, :]

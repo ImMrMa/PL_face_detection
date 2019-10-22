@@ -33,20 +33,27 @@ class WiderCsp():
     def __getitem__(self, index):
         C = self.C
         img_data, img = data_augment.augment_wider(self.cache_data[index], C)
+        hm_small, wh_small, = self.calc_gt_center(C,
+                                             img_data,
+                                             down=1,
+                                             scale='hw',
+                                             offset=False,r=1)
         hm, wh, offset = self.calc_gt_center(C,
                                              img_data,
-                                             down=C.down,
-                                             scale=C.scale,
-                                             offset=True)
+                                             down=4,
+                                             scale='hw',
+                                             offset=True,r=2)
         img = img.astype(np.float32)
         img = img / 255
         img = img[..., [2, 1, 0]]
         img = (img - self.mean) / self.std
         img = img.transpose(2, 0, 1)
+        hm_small = hm_small.transpose(2,0,1).astype(np.float32)
+        wh_small = wh_small.transpose(2,0,1).astype(np.float32)
         hm = hm.transpose(2, 0, 1).astype(np.float32)
         wh = wh.transpose(2, 0, 1).astype(np.float32)
         offset = offset.transpose(2, 0, 1).astype(np.float32)
-        return dict(input=img, hm=hm, wh=wh, offset=offset)
+        return dict(input=img, hm=hm, wh=wh, offset=offset,hm_small=hm_small,wh_small=wh_small)
 
     def calc_gt_center(self, C, img_data, r=2, down=4, scale='h', offset=True):
         def gaussian(kernel):
@@ -56,6 +63,21 @@ class WiderCsp():
             return np.reshape(dx, (-1, 1))
 
         gts = np.copy(img_data['bboxes'])
+        if down==4:
+            ig_length=16
+            delete_indexs=[]
+            for index,box in enumerate(gts):
+                length=((box[3]-box[1])*(box[2]-box[0]))**0.5
+                if length<=ig_length:
+                    delete_indexs.append(index)
+        elif down==1:
+            ig_length=20
+            delete_indexs=[]
+            for index,box in enumerate(gts):
+                length=((box[3]-box[1])*(box[2]-box[0]))**0.5
+                if length>ig_length:
+                    delete_indexs.append(index)
+        gts=np.delete(gts,delete_indexs,0)
         igs = np.copy(img_data['ignoreareas'])
         scale_map = np.zeros(
             (int(C.size_train[0] / down), int(C.size_train[1] / down), 2))

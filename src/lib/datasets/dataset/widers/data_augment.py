@@ -164,13 +164,19 @@ def augment_wider(img_data, c):
             img_data_aug['bboxes'][:, [0, 2]] = img_width - img_data_aug['bboxes'][:, [2, 0]]
     gts = np.copy(img_data_aug['bboxes'])
 
-    scales = np.asarray([16, 32, 64, 128, 256])
+    scales = np.asarray([8,16, 32, 64, 128, 256])
     crop_p = c.size_train[0]
     if len(gts) > 0:
         sel_id = np.random.randint(0, len(gts))
         s_face = np.sqrt((gts[sel_id, 2] - gts[sel_id, 0]) * (gts[sel_id, 3] - gts[sel_id, 1]))
-        index = np.random.randint(0, np.argmin(np.abs(scales - s_face)) + 1)
-        s_tar = np.random.uniform(np.power(2, 4 + index)*1.5, np.power(2, 4 + index) * 2)
+        last_index=np.argmin(np.abs(scales - s_face)) + 1
+        last_list=np.array(range(max(0,last_index-2),last_index))
+        if last_index>=32:
+            last_list=np.array([2,3,4,5])
+            index=np.random.choice(last_list,p=[0.05,0.2,0.3,0.45])   
+        else:
+            index = np.random.choice(last_list,p=(0.1+last_list*0.3)/sum(0.1+last_list*0.3))
+        s_tar = np.random.uniform(np.power(2, 3 + index), np.power(2, 3 + index) * 2)
         ratio = round(s_tar / s_face,4)
         try:
             new_height, new_width = int(ratio * img_height), int(ratio * img_width)
@@ -203,10 +209,10 @@ def augment_wider(img_data, c):
 
             if len(igs) > 0:
                 w, h = igs[:, 2] - igs[:, 0], igs[:, 3] - igs[:, 1]
-                igs = igs[np.logical_and(w >= 12, h >= 12), :]
+                igs = igs[np.logical_and(w >= 5, h >= 5), :]
             if len(gts) > 0:
                 w, h = gts[:, 2] - gts[:, 0], gts[:, 3] - gts[:, 1]
-                gts = gts[np.logical_and(w >= 12, h >= 12), :]
+                gts = gts[np.logical_and(w >= 5, h >= 5), :]
     else:
         img = img[0:crop_p, 0:crop_p]
 

@@ -81,6 +81,8 @@ class opts(object):
                                  help='input width. -1 for default from dataset.')
 
         # train
+        self.parser.add_argument('--multi_scale', action='store_true',
+                                 help='flip data augmentation.')
         self.parser.add_argument('--lr', type=float, default=1.25e-4,
                                  help='learning rate for batch size 32.')
         self.parser.add_argument('--lr_factor', type=float, default=0.5,

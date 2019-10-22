@@ -16,6 +16,7 @@ from .networks.deeplab import get_deeplabv3plus
 from .networks.hr_net import get_hr_net
 from .networks.hr_net_multi import get_hr_net as get_hr_net_v2
 from .networks.resnet_csp_fpn import resnet18
+from .networks.resnet_csp_fpn_multi import resnet18 as cspfpn18
 _model_factory = {
     'res': get_pose_net,  # default Resnet with deconv
     'dlav0': get_dlav0,  # default DLAup
@@ -25,7 +26,8 @@ _model_factory = {
     'deeplab_resnet101':get_deeplabv3plus,
     'hrnet':get_hr_net,
     'hrnetv2':get_hr_net_v2,
-    'cspfpn':resnet18
+    'cspfpn':resnet18,
+    'cspfpnmulti':cspfpn18
 }
 
 
@@ -33,7 +35,10 @@ def create_model(arch, heads, head_conv):
     if 'deeplab' in arch:
         get_model = _model_factory[arch]
         model=get_model()
-    elif 'csp' in arch:
+    elif 'cspfpnmulti' in arch:
+        get_model=_model_factory[arch]
+        model=get_model(change_s1=True,conv4=True,conv4_conv2=True,replace_with_bn=True,all_gn=True)#,conv4=True,conv4_conv2=True)
+    elif 'cspfpn' in arch:
         get_model=_model_factory[arch]
         model=get_model(change_s1=True,conv4=True,conv4_conv2=True,replace_with_bn=True,all_gn=True)#,conv4=True,conv4_conv2=True)
     else:

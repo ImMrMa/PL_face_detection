@@ -7,7 +7,7 @@ clear;
 close all;
 addpath(genpath('./plot'));
 %Please specify your prediction directory.
-pred_dir = '/data/users/mayx/project/github/CenterNet/data/eval/resnet18_final';
+pred_dir = '/data/users/mayx/project/github/CenterNet/data/eval/resnet18_s1_conv4_conv2_gn_last_easy';
 gt_dir = './ground_truth/wider_face_val.mat';
 %preprocessing
 pred_list = read_pred(pred_dir,gt_dir);
@@ -18,7 +18,7 @@ setting_name_list = {'easy_val';'medium_val';'hard_val'};
 setting_class = 'setting_int';
 
 %Please specify your algorithm name.
-legend_name = 'csp.pytorch-resnet-final';
+legend_name = 'csp.pytorch-resnet-gn-easy';
 for i = 1:size(setting_name_list,1)
     fprintf('Current evaluation setting %s\n',setting_name_list{i});
     setting_name = setting_name_list{i};

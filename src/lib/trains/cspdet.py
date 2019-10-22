@@ -68,6 +68,9 @@ class OffsetLoss(torch.nn.Module):
 class CspDetLoss(torch.nn.Module):
     def __init__(self, opt):
         super(CspDetLoss, self).__init__()
+        if opt.multi_scale:
+            self.crit_small_hm=HmLoss()
+            self.crit_small_wh=WhLoss()
         self.crit_hm = HmLoss()
         self.crit_off = OffsetLoss()
         self.crit_wh = WhLoss()
@@ -77,14 +80,22 @@ class CspDetLoss(torch.nn.Module):
         opt = self.opt
         hm_loss, wh_loss, off_loss = 0, 0, 0
         hm_loss += self.crit_hm(outputs['hm'], batch['hm'])
+        if opt.multi_scale:
+            hm_small_loss=self.crit_small_hm(outputs['hm_small'],batch['hm_small'])
         if opt.wh_weight > 0:
             wh_loss += self.crit_wh(outputs['wh'], batch['wh'])
+            if opt.multi_scale:
+                wh_small_loss=self.crit_small_wh(outputs['wh_small'],batch['wh_small'])
         if opt.reg_offset and opt.off_weight > 0:
             off_loss += self.crit_off(outputs['offset'], batch['offset'])
         loss = opt.hm_weight * hm_loss + opt.wh_weight * wh_loss + opt.off_weight * off_loss
+        if opt.multi_scale:
+            loss+=opt.hm_weight*hm_small_loss+opt.wh_weight*wh_small_loss
         # loss =opt.wh_weight * wh_loss
         loss_stats = {
             'loss': loss,
+            'hm_small_loss':hm_small_loss,
+            'wh_small_loss':wh_small_loss,
             'hm_loss': hm_loss,
             'wh_loss': wh_loss,
             'off_loss': off_loss
