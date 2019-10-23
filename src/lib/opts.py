@@ -82,7 +82,7 @@ class opts(object):
 
         # train
         self.parser.add_argument('--multi_scale', action='store_true',
-                                 help='flip data augmentation.')
+                                 help='multi_scale')
         self.parser.add_argument('--lr', type=float, default=1.25e-4,
                                  help='learning rate for batch size 32.')
         self.parser.add_argument('--lr_factor', type=float, default=0.5,
@@ -165,7 +165,7 @@ class opts(object):
         # ctdet
         self.parser.add_argument('--reg_loss', default='l1',
                                  help='regression loss: sl1 | l1 | l2')
-        self.parser.add_argument('--hm_weight', type=float, default=0.01,
+        self.parser.add_argument('--hm_weight', type=float, default=0.05,
                                  help='loss weight for keypoint heatmaps.')
         self.parser.add_argument('--off_weight', type=float, default=0.1,
                                  help='loss weight for keypoint local offsets.')

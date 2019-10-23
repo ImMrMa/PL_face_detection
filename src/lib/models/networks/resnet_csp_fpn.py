@@ -506,10 +506,10 @@ class ResNet(nn.Module):
                 if k in model_dict.keys() and v.shape == model_dict[k].shape and 'bn' not in k
             }
 
-            # for k,v in self.named_parameters():
-            #     v.requires_grad=False
-            #     if 'layer2' in k:
-            #         break
+            for k,v in self.named_parameters():
+                v.requires_grad=False
+                if 'layer2' in k:
+                    break
         else:
             pretrained_dict = self.state_dict()
 

@@ -93,9 +93,9 @@ class BaseTrainer(object):
                 eta=bar.eta_td)
             if iter_id%1==0:
                 for l in avg_loss_stats:
-                    avg_loss_stats[l].update(loss_stats[l].mean().item(),
+                    avg_loss_stats[l].update(loss_stats[l].detach().mean().item(),
                                             batch['input'].size(0))
-                    Bar.suffix = Bar.suffix + '|{} {:.4f} '.format(
+                    Bar.suffix = Bar.suffix + '|{} {:.3f} '.format(
                         l, avg_loss_stats[l].avg)
                     bar_tmp=Bar.suffix
             else:

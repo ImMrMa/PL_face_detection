@@ -225,7 +225,7 @@ class ResNet(nn.Module):
                  change_s1=False,
                  conv4_conv2=False,
                  replace_with_bn=False,
-                 all_gn=False,s3s4s5=False):
+                 all_gn=False):
         super(ResNet, self).__init__()
         if all_gn:
             bn_layer = group_norm
@@ -366,18 +366,11 @@ class ResNet(nn.Module):
                                         padding=0,
                                         output_padding=0,
                                         bias=False)
-        self.s3_trans = nn.ConvTranspose2d(in_channels=transform_planes,
-                                        out_channels=32,
-                                        kernel_size=1,
-                                        stride=1,
-                                        padding=0,
-                                        output_padding=0,
-                                        bias=False)
+        self.s3_transform= nn.Conv2d(in_channels=256,out_channels=64,batch_size=1,stride=1,padding=0,bias=False)
         self.n_img=L2Norm(3)
         self.n0=L2Norm(16)
         self.n1=L2Norm(32)
         self.n2=L2Norm(32)
-        self.n3_trans=L2Norm(32)
         self.n3 = L2Norm(transform_planes)
         self.n4 = L2Norm(transform_planes)
         self.n5 = L2Norm(transform_planes)
@@ -391,7 +384,7 @@ class ResNet(nn.Module):
             nn.ReLU(inplace=True))
         self.hm_small=nn.Sequential(
             nn.Conv2d(
-                in_channels=64,
+                in_channels=32,
                 out_channels=1,
                 kernel_size=1,
                 stride=1,
@@ -399,45 +392,44 @@ class ResNet(nn.Module):
             ), nn.Sigmoid())
         self.wh_small = nn.Sequential(
             nn.Conv2d(
-                in_channels=64,
+                in_channels=32,
                 out_channels=2,
                 kernel_size=1,
                 stride=1,
                 padding=0,
             ))
-        if s3s4s5:
-            self.s_conv = nn.Sequential(
-                nn.Conv2d(in_channels=transform_planes * 3,
-                        out_channels=transform_planes,
-                        kernel_size=3,
-                        stride=1,
-                        padding=1,
-                        bias=False), norm_layer(transform_planes),
-                nn.ReLU(inplace=True))
-            self.hm = nn.Sequential(
-                nn.Conv2d(
-                    in_channels=transform_planes,
-                    out_channels=1,
-                    kernel_size=1,
-                    stride=1,
-                    padding=0,
-                ), nn.Sigmoid())
-            self.wh = nn.Sequential(
-                nn.Conv2d(
-                    in_channels=transform_planes,
-                    out_channels=2,
-                    kernel_size=1,
-                    stride=1,
-                    padding=0,
-                ))
-            self.offset = nn.Sequential(
-                nn.Conv2d(
-                    in_channels=transform_planes,
-                    out_channels=2,
-                    kernel_size=1,
-                    stride=1,
-                    padding=0,
-                ))  
+        self.s_conv = nn.Sequential(
+            nn.Conv2d(in_channels=transform_planes * 3,
+                      out_channels=transform_planes,
+                      kernel_size=3,
+                      stride=1,
+                      padding=1,
+                      bias=False), norm_layer(transform_planes),
+            nn.ReLU(inplace=True))
+        self.hm = nn.Sequential(
+            nn.Conv2d(
+                in_channels=transform_planes,
+                out_channels=1,
+                kernel_size=1,
+                stride=1,
+                padding=0,
+            ), nn.Sigmoid())
+        self.wh = nn.Sequential(
+            nn.Conv2d(
+                in_channels=transform_planes,
+                out_channels=2,
+                kernel_size=1,
+                stride=1,
+                padding=0,
+            ))
+        self.offset = nn.Sequential(
+            nn.Conv2d(
+                in_channels=transform_planes,
+                out_channels=2,
+                kernel_size=1,
+                stride=1,
+                padding=0,
+            ))
         # for m in self.modules():
         #     if isinstance(m, nn.Conv2d):
         #         nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
@@ -464,7 +456,7 @@ class ResNet(nn.Module):
                     conv4=False,
                     conv2=False,
                     conv4_conv2=False,
-                    replace_with_bn=False): 
+                    replace_with_bn=False):
         norm_layer = self._norm_layer
         downsample = None
         previous_dilation = self.dilation
@@ -526,34 +518,31 @@ class ResNet(nn.Module):
             s2 = self.layer1(x)
 
         s3 = self.layer2(s2)
-        # s4 = self.layer3(s3)
-        # s5 = self.layer4(s4)
+        s4 = self.layer3(s3)
+        s5 = self.layer4(s4)
         s1 = self.s1_up(s1)
         s2 = self.s2_up(s2)
         s3 = self.s3_up(s3)
-        # s4 = self.s4_up(s4)
-        # s5 = self.s5_up(s5)
-
+        s4 = self.s4_up(s4)
+        s5 = self.s5_up(s5)
+        s3_small=self.s3_transform(s3)
+        s3_small = F.interpolate(s3_small,scale_factor=4, mode='bilinear')
         s0=self.n0(s0)
         s1=self.n1(s1)
         s2=self.n2(s2)
-        s3_small=self.s3_trans(s3)
-        s3=self.n3_trans(s3_small)
-        s3_small = F.interpolate(s3_small,scale_factor=4, mode='bilinear')
-        s_small_cat=torch.cat([s_img,s0,s1,s2,s3_small],1)
+        s_small_cat=torch.cat([s_img,s0,s1,s2,s3_samll],1)
         s_small_cat=self.s_small_conv(s_small_cat)
         hm_small=self.hm_small(s_small_cat)
         wh_small=self.wh_small(s_small_cat)
-        # s3 = self.n3(s3)
-        # s4 = self.n4(s4)
-        # s5 = self.n5(s5)
-        # s_cat = torch.cat([s3, s4, s5], 1)
-        # s_cat = self.s_conv(s_cat)
-        # hm = self.hm(s_cat)
-        # wh = self.wh(s_cat)
-        # offset = self.offset(s_cat)
-        # return dict(#hm=hm, wh=wh, offset=offset,hm_small=hm_small,wh_small=wh_small)
-        return dict(hm_small=hm_small,wh_small=wh_small)
+        s3 = self.n3(s3)
+        s4 = self.n4(s4)
+        s5 = self.n5(s5)
+        s_cat = torch.cat([s3, s4, s5], 1)
+        s_cat = self.s_conv(s_cat)
+        hm = self.hm(s_cat)
+        wh = self.wh(s_cat)
+        offset = self.offset(s_cat)
+        return dict(hm=hm, wh=wh, offset=offset,hm_small=hm_small,wh_small=wh_small)
 
     def init_weights(
             self,
@@ -564,19 +553,20 @@ class ResNet(nn.Module):
             if 'state_dict' in pretrained_dict.keys():
                 pretrained_dict = pretrained_dict['state_dict']
         elif pretrained:
-            pretrained_dict = load_state_dict_from_url(model_urls[pretrained],map_location='cpu')
+            pretrained_dict = load_state_dict_from_url(model_urls[pretrained])
             # self.load_state_dict(pretrained_dict)
         model_dict = self.state_dict()
         if pretrained:
             pretrained_dict = {
                 k: v
                 for k, v in pretrained_dict.items()
-                if k in model_dict.keys() and v.shape == model_dict[k].shape #and 'bn' not in k
+                if k in model_dict.keys() and v.shape == model_dict[k].shape and 'bn' not in k
             }
-            # for k,v in self.named_parameters():
-            #     v.requires_grad=False
-            #     if 'layer2' in k:
-            #         break
+
+            for k,v in self.named_parameters():
+                v.requires_grad=False
+                if 'layer2' in k:
+                    break
         else:
             pretrained_dict = self.state_dict()
 
@@ -603,7 +593,7 @@ def _resnet(arch, block, layers, pretrained, progress, **kwargs):
     print(kwargs)
     input('s')
     if pretrained:
-        model.init_weights(pretrained='/home/mayx/project/CenterNet/exp/cspdet/wider_resnet18_csp_adam_s1_all_gn_pretrained/model_last_gn.pth')
+        model.init_weights(pretrained='/home/mayx/project/CenterNet/exp/cspdet/wider_resnet18_csp_multi/model_last.pth')
     print(model)
     input('s')
     return model

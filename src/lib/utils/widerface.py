@@ -14,7 +14,7 @@ from .augmentations import preprocess
 from utils.image import gaussian_radius, draw_umich_gaussian, draw_msra_gaussian,gen_quard
 from utils.config import cfg
 class WIDERDetection(data.Dataset):
-    """docstring for WIDERDetection"""
+    """docstring for WIDERDetection"""  
     default_resolution=cfg.resize_height,cfg.resize_width
     mean = np.array([0.485, 0.456, 0.406],
                     dtype=np.float32).reshape(1, 1, 3)
