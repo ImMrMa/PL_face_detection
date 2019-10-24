@@ -225,7 +225,7 @@ class ResNet(nn.Module):
                  change_s1=False,
                  conv4_conv2=False,
                  replace_with_bn=False,
-                 all_gn=False,s3s4s5=False):
+                 all_gn=False,s3s4s5=True,s0s1s2=False):
         super(ResNet, self).__init__()
         if all_gn:
             bn_layer = group_norm
@@ -352,59 +352,62 @@ class ResNet(nn.Module):
                                         padding=0,
                                         output_padding=0,
                                         bias=False)
-        self.s1_up = nn.ConvTranspose2d(in_channels=32,
+        
+
+        self.n3 = L2Norm(transform_planes)
+        self.n4 = L2Norm(transform_planes)
+        self.n5 = L2Norm(transform_planes)
+        if s0s1s2:
+            self.s1_up = nn.ConvTranspose2d(in_channels=32,
                                         out_channels=32,
                                         kernel_size=4,
                                         stride=2,
                                         padding=1,
                                         output_padding=0,
                                         bias=False)
-        self.s2_up = nn.ConvTranspose2d(in_channels=64,
-                                        out_channels=32,
-                                        kernel_size=4,
-                                        stride=4,
-                                        padding=0,
-                                        output_padding=0,
-                                        bias=False)
-        self.s3_trans = nn.ConvTranspose2d(in_channels=transform_planes,
-                                        out_channels=32,
-                                        kernel_size=1,
-                                        stride=1,
-                                        padding=0,
-                                        output_padding=0,
-                                        bias=False)
-        self.n_img=L2Norm(3)
-        self.n0=L2Norm(16)
-        self.n1=L2Norm(32)
-        self.n2=L2Norm(32)
-        self.n3_trans=L2Norm(32)
-        self.n3 = L2Norm(transform_planes)
-        self.n4 = L2Norm(transform_planes)
-        self.n5 = L2Norm(transform_planes)
-        self.s_small_conv=nn.Sequential(
-            nn.Conv2d(in_channels=3+16+32+32+32,
-                      out_channels=64,
-                      kernel_size=3,
-                      stride=1,
-                      padding=1,
-                      bias=False), norm_layer(64),
-            nn.ReLU(inplace=True))
-        self.hm_small=nn.Sequential(
-            nn.Conv2d(
-                in_channels=64,
-                out_channels=1,
-                kernel_size=1,
-                stride=1,
-                padding=0,
-            ), nn.Sigmoid())
-        self.wh_small = nn.Sequential(
-            nn.Conv2d(
-                in_channels=64,
-                out_channels=2,
-                kernel_size=1,
-                stride=1,
-                padding=0,
-            ))
+            self.s2_up = nn.ConvTranspose2d(in_channels=64,
+                                            out_channels=32,
+                                            kernel_size=4,
+                                            stride=4,
+                                            padding=0,
+                                            output_padding=0,
+                                            bias=False)
+            self.s3_trans = nn.ConvTranspose2d(in_channels=transform_planes,
+                                            out_channels=32,
+                                            kernel_size=1,
+                                            stride=1,
+                                            padding=0,
+                                            output_padding=0,
+                                            bias=False)
+            self.n_img=L2Norm(3)
+            self.n0=L2Norm(16)
+            self.n1=L2Norm(32)
+            self.n2=L2Norm(32)
+            self.n3_trans=L2Norm(32)
+            self.s_small_conv=nn.Sequential(
+                nn.Conv2d(in_channels=3+16+32+32+32,
+                        out_channels=64,
+                        kernel_size=3,
+                        stride=1,
+                        padding=1,
+                        bias=False), norm_layer(64),
+                nn.ReLU(inplace=True))
+            self.hm_small=nn.Sequential(
+                nn.Conv2d(
+                    in_channels=64,
+                    out_channels=1,
+                    kernel_size=1,
+                    stride=1,
+                    padding=0,
+                ), nn.Sigmoid())
+            self.wh_small = nn.Sequential(
+                nn.Conv2d(
+                    in_channels=64,
+                    out_channels=2,
+                    kernel_size=1,
+                    stride=1,
+                    padding=0,
+                ))
         if s3s4s5:
             self.s_conv = nn.Sequential(
                 nn.Conv2d(in_channels=transform_planes * 3,
@@ -512,7 +515,7 @@ class ResNet(nn.Module):
         return nn.Sequential(*layers)
 
     def forward(self, x):
-        s_img=self.n_img(x)
+        # s_img=self.n_img(x)
         if self.change_s1:
             x = self.layeri0(x)
             s0 = self.layeri1(x)
@@ -526,34 +529,34 @@ class ResNet(nn.Module):
             s2 = self.layer1(x)
 
         s3 = self.layer2(s2)
-        # s4 = self.layer3(s3)
-        # s5 = self.layer4(s4)
-        s1 = self.s1_up(s1)
-        s2 = self.s2_up(s2)
+        s4 = self.layer3(s3)
+        s5 = self.layer4(s4)
+        # s1 = self.s1_up(s1)
+        # s2 = self.s2_up(s2)
         s3 = self.s3_up(s3)
-        # s4 = self.s4_up(s4)
-        # s5 = self.s5_up(s5)
+        s4 = self.s4_up(s4)
+        s5 = self.s5_up(s5)
 
-        s0=self.n0(s0)
-        s1=self.n1(s1)
-        s2=self.n2(s2)
-        s3_small=self.s3_trans(s3)
-        s3=self.n3_trans(s3_small)
-        s3_small = F.interpolate(s3_small,scale_factor=4, mode='bilinear')
-        s_small_cat=torch.cat([s_img,s0,s1,s2,s3_small],1)
-        s_small_cat=self.s_small_conv(s_small_cat)
-        hm_small=self.hm_small(s_small_cat)
-        wh_small=self.wh_small(s_small_cat)
-        # s3 = self.n3(s3)
-        # s4 = self.n4(s4)
-        # s5 = self.n5(s5)
-        # s_cat = torch.cat([s3, s4, s5], 1)
-        # s_cat = self.s_conv(s_cat)
-        # hm = self.hm(s_cat)
-        # wh = self.wh(s_cat)
-        # offset = self.offset(s_cat)
-        # return dict(#hm=hm, wh=wh, offset=offset,hm_small=hm_small,wh_small=wh_small)
-        return dict(hm_small=hm_small,wh_small=wh_small)
+        # s0=self.n0(s0)
+        # s1=self.n1(s1)
+        # s2=self.n2(s2)
+        # s3_small=self.s3_trans(s3)
+        # s3=self.n3_trans(s3_small)
+        # s3_small = F.interpolate(s3_small,scale_factor=4, mode='bilinear')
+        # s_small_cat=torch.cat([s_img,s0,s1,s2,s3_small],1)
+        # s_small_cat=self.s_small_conv(s_small_cat)
+        # hm_small=self.hm_small(s_small_cat)
+        # wh_small=self.wh_small(s_small_cat)
+        s3 = self.n3(s3)
+        s4 = self.n4(s4)
+        s5 = self.n5(s5)
+        s_cat = torch.cat([s3, s4, s5], 1)
+        s_cat = self.s_conv(s_cat)
+        hm = self.hm(s_cat)
+        wh = self.wh(s_cat)
+        offset = self.offset(s_cat)
+        return dict(hm=hm, wh=wh, offset=offset)#hm_small=hm_small,wh_small=wh_small)
+        # return dict(hm_small=hm_small,wh_small=wh_small)
 
     def init_weights(
             self,
@@ -563,6 +566,12 @@ class ResNet(nn.Module):
             pretrained_dict = torch.load(pretrained)
             if 'state_dict' in pretrained_dict.keys():
                 pretrained_dict = pretrained_dict['state_dict']
+            elif 'model' in pretrained_dict.keys():
+                pretrained_dict=pretrained_dict['model']
+                new_dict=dict()
+                for k,v in pretrained_dict.items():
+                    new_dict[k[7:]]=v
+                pretrained_dict=new_dict
         elif pretrained:
             pretrained_dict = load_state_dict_from_url(model_urls[pretrained],map_location='cpu')
             # self.load_state_dict(pretrained_dict)
@@ -579,7 +588,9 @@ class ResNet(nn.Module):
             #         break
         else:
             pretrained_dict = self.state_dict()
-
+        for k,v in self.named_parameters():
+            if 'bn' in k:
+                v.requires_grad=False
         for k, v in self.named_parameters():
             if 'hm' in k:
                 if 'bias' in k:
@@ -589,7 +600,9 @@ class ResNet(nn.Module):
 
         model_dict.update(pretrained_dict)
         self.load_state_dict(model_dict)
+
         input('grad')
+
         for k, v in self.named_parameters():
             print(k, v.shape)
         input('model_parameters:')
@@ -603,7 +616,7 @@ def _resnet(arch, block, layers, pretrained, progress, **kwargs):
     print(kwargs)
     input('s')
     if pretrained:
-        model.init_weights(pretrained='/home/mayx/project/CenterNet/exp/cspdet/wider_resnet18_csp_adam_s1_all_gn_pretrained/model_last_gn.pth')
+        model.init_weights(pretrained='/data/users/mayx/project/resnet_new_loader/log/resnet18-10_21-13_56/58_0.64-13_00.pth')
     print(model)
     input('s')
     return model

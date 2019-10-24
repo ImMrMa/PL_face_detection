@@ -26,7 +26,7 @@ def main(opt):
 
     logger = Logger(opt)
 
-    os.environ['CUDA_VISIBLE_DEVICES'] = opt.gpus_str
+    # os.environ['CUDA_VISIBLE_DEVICES'] = opt.gpus_str
     opt.device = torch.device('cuda' if opt.gpus[0] >= 0 else 'cpu')
 
     print('Creating model...')
@@ -45,6 +45,8 @@ def main(opt):
     Trainer = train_factory[opt.task]
     trainer = Trainer(opt, model, optimizer)
     trainer.set_device(opt.gpus, opt.chunk_sizes, opt.device)
+    for param_group in optimizer.param_groups:
+                param_group['lr'] = 2e-4
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
         optimizer,
         'min',

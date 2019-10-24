@@ -37,7 +37,7 @@ def create_model(arch, heads, head_conv):
         model=get_model()
     elif 'cspfpnmulti' in arch:
         get_model=_model_factory[arch]
-        model=get_model(change_s1=True,conv4=True,conv4_conv2=True,replace_with_bn=True,all_gn=True)#,conv4=True,conv4_conv2=True)
+        model=get_model(change_s1=True,conv4=True,conv4_conv2=True)#,conv4=True,conv4_conv2=True)
     elif 'cspfpn' in arch:
         get_model=_model_factory[arch]
         model=get_model(change_s1=True,conv4=True,conv4_conv2=True,replace_with_bn=True,all_gn=True)#,conv4=True,conv4_conv2=True)

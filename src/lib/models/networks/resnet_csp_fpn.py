@@ -225,7 +225,7 @@ class ResNet(nn.Module):
                  change_s1=False,
                  conv4_conv2=False,
                  replace_with_bn=False,
-                 all_gn=False):
+                 all_gn=False,mask_layer=False):
         super(ResNet, self).__init__()
         if all_gn:
             bn_layer = group_norm
@@ -386,6 +386,16 @@ class ResNet(nn.Module):
                 stride=1,
                 padding=0,
             ))
+        self.mask_layer=mask_layer
+        if mask_layer:
+            self.mask=nn.Sequential(
+            nn.Conv2d(
+                in_channels=transform_planes,
+                out_channels=1,
+                kernel_size=1,
+                stride=1,
+                padding=0,
+            ),nn.Sigmoid())
         # for m in self.modules():
         #     if isinstance(m, nn.Conv2d):
         #         nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
@@ -485,7 +495,11 @@ class ResNet(nn.Module):
         hm = self.hm(s_cat)
         wh = self.wh(s_cat)
         offset = self.offset(s_cat)
-        return dict(hm=hm, wh=wh, offset=offset)
+        return_data=dict(hm=hm, wh=wh, offset=offset)
+        if self.mask_layer:
+            mask=self.mask(s_cat)
+            return_data['mask']=mask
+        return return_data
 
     def init_weights(
             self,

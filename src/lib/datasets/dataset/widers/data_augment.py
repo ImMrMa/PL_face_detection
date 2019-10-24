@@ -105,8 +105,8 @@ def random_pave(image, gts, igs, pave_size, limit=8):
     if len(gts) > 0:
         gts[:, 0:4:2] += pave_x
         gts[:, 1:4:2] += pave_y
-        keep_inds = ((gts[:, 2] - gts[:, 0]) >= limit)
-        gts = gts[keep_inds]
+        # keep_inds = ((gts[:, 2] - gts[:, 0]) >= limit)
+        # gts = gts[keep_inds]
 
     return paved_image, gts, igs
 
@@ -169,20 +169,14 @@ def augment_wider(img_data, c):
     if len(gts) > 0:
         sel_id = np.random.randint(0, len(gts))
         s_face = np.sqrt((gts[sel_id, 2] - gts[sel_id, 0]) * (gts[sel_id, 3] - gts[sel_id, 1]))
-        last_index=np.argmin(np.abs(scales - s_face)) + 1
-        last_list=np.array(range(max(0,last_index-2),last_index))
-        if last_index>=32:
-            last_list=np.array([2,3,4,5])
-            index=np.random.choice(last_list,p=[0.05,0.2,0.3,0.45])   
-        else:
-            index = np.random.choice(last_list,p=(0.1+last_list*0.3)/sum(0.1+last_list*0.3))
-        s_tar = np.random.uniform(np.power(2, 3 + index), np.power(2, 3 + index) * 2)
-        ratio = round(s_tar / s_face,4)
-        try:
-            new_height, new_width = int(ratio * img_height), int(ratio * img_width)
-        except:
-            print(ratio,s_face,gts[sel_id],img_height,img_width)    
-            input('s')
+        last_index=np.argmin(np.abs(scales - s_face))
+        last1=1
+        if last_index<=3:
+            last1=2
+        index = np.random.randint(max(0,last_index-1), min(last_index + last1,6))
+        s_tar = np.random.uniform(np.power(2, 3 + index)*1, np.power(2, 3 + index) * 2)
+        ratio = s_tar / s_face
+        new_height, new_width = int(ratio * img_height), int(ratio * img_width)
         img = cv2.resize(img, (new_width, new_height))
         gts = np.asarray(gts, dtype=float) * ratio
 
@@ -209,12 +203,64 @@ def augment_wider(img_data, c):
 
             if len(igs) > 0:
                 w, h = igs[:, 2] - igs[:, 0], igs[:, 3] - igs[:, 1]
-                igs = igs[np.logical_and(w >= 5, h >= 5), :]
-            if len(gts) > 0:
-                w, h = gts[:, 2] - gts[:, 0], gts[:, 3] - gts[:, 1]
-                gts = gts[np.logical_and(w >= 5, h >= 5), :]
+                igs = igs[np.logical_and(w >= 12, h >= 12), :]
+            # if len(gts) > 0:
+            #     w, h = gts[:, 2] - gts[:, 0], gts[:, 3] - gts[:, 1]
+            #     gts = gts[np.logical_and(w >= 12, h >= 12), :]
     else:
         img = img[0:crop_p, 0:crop_p]
+
+    # scales = np.asarray([8,16, 32, 64, 128, 256])
+    # crop_p = c.size_train[0]
+    # if len(gts) > 0:
+    #     sel_id = np.random.randint(0, len(gts))
+    #     s_face = np.sqrt((gts[sel_id, 2] - gts[sel_id, 0]) * (gts[sel_id, 3] - gts[sel_id, 1]))
+    #     last_index=np.argmin(np.abs(scales - s_face)) + 1
+    #     last_list=np.array(range(max(0,last_index-2),last_index))
+    #     if last_index>3:
+    #         last_list=np.array([3,4,5])
+    #         index=np.random.choice(last_list,p=[0.25,0.3,0.45])   
+    #     else:
+    #         index = np.random.choice(last_list)
+    #     s_tar = np.random.uniform(np.power(2, 3 + index), np.power(2, 3 + index) * 2)
+    #     ratio = round(s_tar / s_face,4)
+    #     try:
+    #         new_height, new_width = int(ratio * img_height), int(ratio * img_width)
+    #     except:
+    #         print(ratio,s_face,gts[sel_id],img_height,img_width)    
+    #         input('s')
+    #     img = cv2.resize(img, (new_width, new_height))
+    #     gts = np.asarray(gts, dtype=float) * ratio
+
+    #     crop_x1 = np.random.randint(0, int(gts[sel_id, 0])+1)
+    #     crop_x1 = np.minimum(crop_x1, np.maximum(0, new_width - crop_p))
+    #     crop_y1 = np.random.randint(0, int(gts[sel_id, 1])+1)
+    #     crop_y1 = np.minimum(crop_y1, np.maximum(0, new_height - crop_p))
+    #     img = img[crop_y1:crop_y1 + crop_p, crop_x1:crop_x1 + crop_p]
+    #     # crop detections
+    #     if len(gts) > 0:
+    #         ori_gts = np.copy(gts)
+    #         gts[:, 0:4:2] -= crop_x1
+    #         gts[:, 1:4:2] -= crop_y1
+    #         gts[:, 0:4:2] = np.clip(gts[:, 0:4:2], 0, crop_p)
+    #         gts[:, 1:4:2] = np.clip(gts[:, 1:4:2], 0, crop_p)
+
+    #         before_area = (ori_gts[:, 2] - ori_gts[:, 0]) * (ori_gts[:, 3] - ori_gts[:, 1])
+    #         after_area = (gts[:, 2] - gts[:, 0]) * (gts[:, 3] - gts[:, 1])
+
+    #         keep_inds = (after_area >= 0.5 * before_area)
+    #         keep_inds_ig = (after_area < 0.5 * before_area)
+    #         igs = gts[keep_inds_ig]
+    #         gts = gts[keep_inds]
+
+    #         if len(igs) > 0:
+    #             w, h = igs[:, 2] - igs[:, 0], igs[:, 3] - igs[:, 1]
+    #             igs = igs[np.logical_and(w >= 5, h >= 5), :]
+    #         if len(gts) > 0:
+    #             w, h = gts[:, 2] - gts[:, 0], gts[:, 3] - gts[:, 1]
+    #             gts = gts[np.logical_and(w >= 5, h >= 5), :]
+    # else:
+    #     img = img[0:crop_p, 0:crop_p]
 
     if np.minimum(img.shape[0], img.shape[1]) < c.size_train[0]:
         img, gts, igs = random_pave(img, gts, igs, c.size_train)

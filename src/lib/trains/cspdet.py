@@ -34,6 +34,24 @@ class HmLoss(torch.nn.Module):
         loss = torch.sum(focal_weight * cls_loss) / torch.clamp(
             torch.sum(label[:, 2, :, :]), 1)
         return loss
+class MaskLoss(torch.nn.Module):
+    def __init__(self):
+        super(MaskLoss, self).__init__()
+        self.bce_loss = F.binary_cross_entropy
+
+    def forward(self, output, label):
+        cls_loss = self.bce_loss(output[:, 0, ...],
+                                 label[:, 0, ...],
+                                 reduction='none')
+        positives = label[:, 0, :, :]
+        negatives = label[:, 0, :, :]==0
+        foreground_weight = positives * ((1.0 - output[:, 0, :, :])**2)
+        background_weight = negatives * (
+            (1.0 - label[:, 0, :, :])**4.0) * (output[:, 0, :, :]**2)
+        focal_weight = foreground_weight + background_weight
+        loss = torch.sum(focal_weight * cls_loss) / torch.clamp(
+            torch.sum(label[:, 2, :, :]), 1)
+        return loss
 
 
 class WhLoss(torch.nn.Module):
@@ -80,26 +98,25 @@ class CspDetLoss(torch.nn.Module):
         opt = self.opt
         loss=0
         hm_loss, wh_loss, off_loss = 0, 0, 0
-        # hm_loss += self.crit_hm(outputs['hm'], batch['hm'])
+        hm_loss += self.crit_hm(outputs['hm'], batch['hm'])
         if opt.multi_scale:
             hm_small_loss=self.crit_small_hm(outputs['hm_small'],batch['hm_small'])
         if opt.wh_weight > 0:
-            # wh_loss += self.crit_wh(outputs['wh'], batch['wh'])
+            wh_loss += self.crit_wh(outputs['wh'], batch['wh'])
             if opt.multi_scale:
                 wh_small_loss=self.crit_small_wh(outputs['wh_small'],batch['wh_small'])
-        # if opt.reg_offset and opt.off_weight > 0:
-        #     off_loss += self.crit_off(outputs['offset'], batch['offset'])
-        # loss = opt.hm_weight * hm_loss + opt.wh_weight * wh_loss + opt.off_weight * off_loss
+        if opt.reg_offset and opt.off_weight > 0:
+            off_loss += self.crit_off(outputs['offset'], batch['offset'])
+        loss = opt.hm_weight * hm_loss + opt.wh_weight * wh_loss + opt.off_weight * off_loss
         if opt.multi_scale:
             loss+=opt.hm_weight*hm_small_loss+opt.wh_weight*wh_small_loss
-        # loss =opt.wh_weight * wh_loss
-        loss_stats=dict(loss=loss)
-        # loss_stats = {
-        #     'loss': loss,
-        #     'hm_loss': hm_loss,
-        #     'wh_loss': wh_loss,
-        #     'off_loss': off_loss
-        # }
+        # loss_stats=dict(loss=loss)
+        loss_stats = {
+            'loss': loss,
+            'hm_loss': hm_loss,
+            'wh_loss': wh_loss,
+            'off_loss': off_loss
+        }
         if opt.multi_scale:
             loss_stats['hm_small_loss']=hm_small_loss
             loss_stats['wh_small_loss']=wh_small_loss
@@ -112,9 +129,9 @@ class CspDetTrainer(BaseTrainer):
 
     def _get_losses(self, opt):
         loss_states=['loss']
-        # loss_states = ['loss', 'hm_loss', 'wh_loss']
-        # if opt.reg_offset:
-        #     loss_states.append('off_loss')
+        loss_states = ['loss', 'hm_loss', 'wh_loss']
+        if opt.reg_offset:
+            loss_states.append('off_loss')
         if opt.multi_scale:
 
             loss_states.append('hm_small_loss')

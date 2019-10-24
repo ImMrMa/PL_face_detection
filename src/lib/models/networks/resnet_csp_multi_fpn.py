@@ -562,11 +562,9 @@ class ResNet(nn.Module):
                 for k, v in pretrained_dict.items()
                 if k in model_dict.keys() and v.shape == model_dict[k].shape and 'bn' not in k
             }
-
             for k,v in self.named_parameters():
-                v.requires_grad=False
-                if 'layer2' in k:
-                    break
+                if 'bn' in k:
+                    v.requires_grad=False
         else:
             pretrained_dict = self.state_dict()
 
@@ -576,7 +574,6 @@ class ResNet(nn.Module):
                     pretrained_dict[k] = torch.ones_like(v) * -math.log(
                         (1 - 0.01) / 0.01)
             print(k, v.requires_grad)
-
         model_dict.update(pretrained_dict)
         self.load_state_dict(model_dict)
         input('grad')
