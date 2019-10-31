@@ -116,8 +116,8 @@ std = np.array([0.229, 0.224, 0.225]).reshape(1, 1, 3).astype(np.float32)
 
 os.environ["CUDA_VISIBLE_DEVICES"] = '0'
 cache_path = 'data/cache/widerface/val'
-out_path = 'data/eval/resnet18_s1_conv4_conv2_gn_last_easy'
-pretrained_path = '/data/users/mayx/model_last_gn.pth'
+out_path = 'data/eval/resnet18_s1_conv4_conv2_imagenet'
+pretrained_path = '/home/mayx/project/CenterNet/models/model_conv4_conv2_imagenet.pth'
 with open(cache_path, 'rb') as fid:
     val_data = pickle.load(fid, encoding='latin1')
 num_imgs = len(val_data)

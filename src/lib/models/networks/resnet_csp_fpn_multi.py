@@ -44,25 +44,25 @@ def conv3x3(in_planes, out_planes, stride=1, groups=1, dilation=1):
                      dilation=dilation)
 
 
-def conv4x4(in_planes, out_planes, stride=1, groups=1, dilation=1):
+def conv4x4(in_planes, out_planes, stride=1, groups=1, dilation=1,padding=1):
     """3x3 convolution with padding"""
     return nn.Conv2d(in_planes,
                      out_planes,
                      kernel_size=4,
                      stride=stride,
-                     padding=dilation,
+                     padding=padding,
                      groups=groups,
                      bias=False,
                      dilation=dilation)
 
 
-def conv2x2(in_planes, out_planes, stride=1, groups=1, dilation=1):
+def conv2x2(in_planes, out_planes, stride=1, groups=1, dilation=1,padding=0):
     """3x3 convolution with padding"""
     return nn.Conv2d(in_planes,
                      out_planes,
                      kernel_size=2,
                      stride=stride,
-                     padding=0,
+                     padding=padding,
                      groups=groups,
                      bias=False,
                      dilation=dilation)
@@ -119,8 +119,10 @@ class BasicBlock(nn.Module):
             self.conv1 = conv4x4(inplanes, planes, stride, dilation=dilation)
         elif conv2 and dilation == 1:
             self.conv1 = conv2x2(inplanes, planes, stride, dilation=dilation)
+        elif dilation>1:
+            self.conv1 = conv4x4(inplanes, planes, stride, dilation=dilation,padding=3)
         else:
-            self.conv1 = conv3x3(inplanes, planes, stride, dilation=dilation)
+            self.conv1=conv3x3(in_planes,out_planes)
         if replace_with_bn:
             norm_layer = group_norm
         self.bn1 = norm_layer(planes)
@@ -329,6 +331,7 @@ class ResNet(nn.Module):
                                        layers[3],
                                        stride=2,
                                        dilate=replace_stride_with_dilation[2],
+                                       conv4=conv4,
                                        conv4_conv2=conv4_conv2)
         self.inplanes_s5 = self.inplanes
         self.s3_up = nn.ConvTranspose2d(in_channels=self.inplanes_s3,
@@ -483,6 +486,11 @@ class ResNet(nn.Module):
                     norm_layer(planes * block.expansion),
                 )
                 norm_layer = self._norm_layer
+            elif dilate:
+                downsample = nn.Sequential(
+                    conv2x2(self.inplanes, planes * block.expansion, stride,padding=1),
+                    norm_layer(planes * block.expansion),
+                )
             else:
                 downsample = nn.Sequential(
                     conv1x1(self.inplanes, planes * block.expansion, stride),
