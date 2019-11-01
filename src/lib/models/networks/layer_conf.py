@@ -132,8 +132,8 @@ class BasicBlock(nn.Module):
             raise ValueError(
                 'BasicBlock only supports groups=1 and base_width=64')
         if layer_conv:
-            self.conv1 = nn.Conv2d(width,
-                                   width,
+            self.conv1 = nn.Conv2d(inplanes,
+                                   planes,
                                    kernel_size=layer_conv['k'],
                                    stride=layer_conv['s'],
                                    padding=layer_conv['p'],
@@ -141,7 +141,7 @@ class BasicBlock(nn.Module):
                                    bias=False,
                                    dilation=layer_conv['d'])
         else:
-            self.conv1 = conv3x3(width, width, stride, dilation=dilation)
+            self.conv1 = conv3x3(inplanes, planes, stride, dilation=dilation)
         if replace_with_bn:
             norm_layer = group_norm
         self.bn1 = norm_layer(planes)
