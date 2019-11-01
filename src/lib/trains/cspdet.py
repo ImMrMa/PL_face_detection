@@ -89,6 +89,7 @@ class CspDetLoss(torch.nn.Module):
         if opt.multi_scale:
             self.crit_small_hm=HmLoss()
             self.crit_small_wh=WhLoss()
+            self.crit_small_offset=OffsetLoss()
         self.crit_hm = HmLoss()
         self.crit_off = OffsetLoss()
         self.crit_wh = WhLoss()
@@ -107,9 +108,11 @@ class CspDetLoss(torch.nn.Module):
                 wh_small_loss=self.crit_small_wh(outputs['wh_small'],batch['wh_small'])
         if opt.reg_offset and opt.off_weight > 0:
             off_loss += self.crit_off(outputs['offset'], batch['offset'])
+            if opt.multi_scale:
+                off_small_loss=self.crit_small_offset(outputs['offset_small'],batch['offset_small'])
         loss = opt.hm_weight * hm_loss + opt.wh_weight * wh_loss + opt.off_weight * off_loss
         if opt.multi_scale:
-            loss+=opt.hm_weight*hm_small_loss+opt.wh_weight*wh_small_loss
+            loss+=opt.hm_weight*hm_small_loss+opt.wh_weight*wh_small_loss+opt.off_weight*off_loss
         # loss_stats=dict(loss=loss)
         loss_stats = {
             'loss': loss,
@@ -118,8 +121,9 @@ class CspDetLoss(torch.nn.Module):
             'off_loss': off_loss
         }
         if opt.multi_scale:
-            loss_stats['hm_small_loss']=hm_small_loss
-            loss_stats['wh_small_loss']=wh_small_loss
+            loss_stats['hm_s_loss']=hm_small_loss
+            loss_stats['wh_s_loss']=wh_small_loss
+            loss_stats['off_s_loss']=off_small_loss
         return loss, loss_stats
 
 
@@ -133,9 +137,9 @@ class CspDetTrainer(BaseTrainer):
         if opt.reg_offset:
             loss_states.append('off_loss')
         if opt.multi_scale:
-
-            loss_states.append('hm_small_loss')
-            loss_states.append('wh_small_loss')
+            loss_states.append('off_s_loss')
+            loss_states.append('hm_s_loss')
+            loss_states.append('wh_s_loss')
         loss = CspDetLoss(opt)
         return loss_states, loss
 
