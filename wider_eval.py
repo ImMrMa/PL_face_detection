@@ -12,7 +12,7 @@ import torch.nn as nn
 
 os.environ["CUDA_VISIBLE_DEVICES"] = '6'
 cache_path = 'data/cache/widerface/val'
-out_path = 'data/eval/resnet18_conv3_ori'
+out_path = 'data/eval/resnet18_conv3_ori_ms'
 pretrained_path = '/data/users/mayx/my_code/github/CenterNet/models/model_conv3_ori.pth'
 mode=0
 def _nms(heat, kernel=3):
@@ -392,18 +392,17 @@ for f in tqdm(range(num_imgs)):
         detector=detect_face
     det0 = detector(
         img,
-        nms=True,
+        nms=False,
     )
-    # det1 = detector(img, flip=True,nms=False)
-    # det2 = im_det_ms_pyramid(img, max_im_shrink,mode=mode)
+    det1 = detector(img, flip=True,nms=False)
+    det2 = im_det_ms_pyramid(img, max_im_shrink,mode=mode)
     # merge all test results via bounding box voting
-    # det = np.row_stack((det0, det1, det2))
-    det=det0
+    det = np.row_stack((det0, det1, det2))
     keep_index = np.where(np.minimum(det[:, 2] - det[:, 0], det[:, 3] - det[:, 1]) >= 3)[0]
     det = det[keep_index, :]
     dets = soft_bbox_vote(det, thre=0.4)
-    # keep_index = np.where((dets[:, 2] - dets[:, 0] + 1) * (dets[:, 3] - dets[:, 1] + 1) >= 6 ** 2)[0]
-    # dets = dets[keep_index, :]
+    keep_index = np.where((dets[:, 2] - dets[:, 0] + 1) * (dets[:, 3] - dets[:, 1] + 1) >= 6 ** 2)[0]
+    dets = dets[keep_index, :]
     with open(txtpath, 'w') as f:
         f.write('{:s}\n'.format(filename))
         f.write('{:d}\n'.format(len(dets)))
