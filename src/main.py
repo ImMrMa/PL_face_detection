@@ -76,8 +76,6 @@ def main(opt):
         drop_last=True,
         # collate_fn=default_collate
     )
-    for param_group in optimizer.param_groups:
-            param_group['lr'] = 1e-4
     print('Starting training...')
     best = 1e10
     for epoch in range(start_epoch + 1, opt.num_epochs + 1):
