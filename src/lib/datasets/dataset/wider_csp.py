@@ -35,9 +35,9 @@ class WiderCsp():
     def __getitem__(self, index):
         C = self.C
         mask = False
-        small=True
+        small=False
         img_data, img = data_augment.augment_wider(
-            self.cache_data[index], C, mask=mask,default_resample=False,resmaple=False)
+            self.cache_data[index], C, mask=mask,default_resample=True,resmaple=True)
         label = self.calc_gt_center(C,
                                     img_data,
                                     down=4,
@@ -55,7 +55,7 @@ class WiderCsp():
         wh = wh.transpose(2, 0, 1).astype(np.float32)
         offset = offset.transpose(2, 0, 1).astype(np.float32)
         
-        return_data = dict(input=img, hm=hm, wh=wh, offset=offset)
+        return_data = dict(input=img, hm=hm, wh=wh, offset=offset)a
         if small:
             label_small = self.calc_gt_center(C,
                                              img_data,
