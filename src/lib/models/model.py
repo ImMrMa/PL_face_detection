@@ -16,7 +16,7 @@ from .networks.deeplab import get_deeplabv3plus
 from .networks.hr_net import get_hr_net
 from .networks.hr_net_multi import get_hr_net as get_hr_net_v2
 from .networks.resnet_csp_fpn import resnet18
-from .networks.resnet_csp_fpn_multi import resnet18 as cspfpn18
+from .networks.layer_conf import resnet50 as cspfpn50
 _model_factory = {
     'res': get_pose_net,  # default Resnet with deconv
     'dlav0': get_dlav0,  # default DLAup
@@ -27,7 +27,7 @@ _model_factory = {
     'hrnet':get_hr_net,
     'hrnetv2':get_hr_net_v2,
     'cspfpn':resnet18,
-    'cspfpnmulti':cspfpn18
+    'cspfpnmulti':cspfpn50
 }
 
 
@@ -37,10 +37,17 @@ def create_model(arch, heads, head_conv):
         model=get_model()
     elif 'cspfpnmulti' in arch:
         get_model=_model_factory[arch]
-        model=get_model(change_s1=True,conv4=True,conv4_conv2=True)#,conv4=True,conv4_conv2=True)
+        layer_conf = dict(
+        layer2=dict(conv=dict(k=3, p=1, d=1, s=2),
+                    down=dict(k=1, p=0, d=1, s=2)),
+        layer3=dict(conv=dict(k=3, p=1, d=1, s=2),
+                    down=dict(k=1, p=0, d=1, s=2)),
+        layer4=dict(conv=dict(k=3, p=2, d=2, s=1),
+                    down=dict(k=1, p=0, d=1, s=1)))
+        model=get_model(mulit_stage=True, change_s1=False,layer_conf=layer_conf)
     elif 'cspfpn' in arch:
         get_model=_model_factory[arch]
-        model=get_model(change_s1=True,conv4=True,conv4_conv2=True,replace_with_bn=True,all_gn=True)#,conv4=True,conv4_conv2=True)
+        model=get_model(change_s1=True,conv4=True,conv4_conv2=True)#,conv4=True,conv4_conv2=True)
     else:
         num_layers = int(arch[arch.find('_') + 1:]) if '_' in arch else 0
         arch = arch[:arch.find('_')] if '_' in arch else arch

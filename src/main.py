@@ -45,8 +45,6 @@ def main(opt):
     Trainer = train_factory[opt.task]
     trainer = Trainer(opt, model, optimizer)
     trainer.set_device(opt.gpus, opt.chunk_sizes, opt.device)
-    for param_group in optimizer.param_groups:
-                param_group['lr'] = 2e-4
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
         optimizer,
         'min',
@@ -54,7 +52,7 @@ def main(opt):
         threshold_mode='abs',
         factor=opt.lr_factor,
         patience=5,
-        min_lr=8e-5,
+        min_lr=8e-6,
         verbose=True)
     print('Setting up data...')
     val_loader = torch.utils.data.DataLoader(
@@ -78,6 +76,8 @@ def main(opt):
         drop_last=True,
         # collate_fn=default_collate
     )
+    for param_group in optimizer.param_groups:
+            param_group['lr'] = 1e-4
     print('Starting training...')
     best = 1e10
     for epoch in range(start_epoch + 1, opt.num_epochs + 1):

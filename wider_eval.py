@@ -6,11 +6,33 @@ import os.path as osp
 import cv2
 import numpy as np
 import torch
-from src.lib.models.networks.resnet_csp_fpn import resnet18 as net
+from src.lib.models.networks.layer_conf import resnet18 as net
+import torch.nn as nn
+# import argparse
 
+os.environ["CUDA_VISIBLE_DEVICES"] = '6'
+cache_path = 'data/cache/widerface/val'
+out_path = 'data/eval/resnet18_conv3_ori_ms'
+pretrained_path = '/data/users/mayx/my_code/github/CenterNet/models/model_conv3_ori.pth'
+mode=0
+def _nms(heat, kernel=3):
+    pad = (kernel - 1) // 2
+
+    hmax = nn.functional.max_pool2d(heat, (kernel, kernel),
+                                    stride=1,
+                                    padding=pad)
+    keep = (hmax == heat).float()
+    return heat * keep
 
 def get_model(pretrained_path=None):
-    model = net(conv4=True,conv4_conv2=True,all_gn=True,change_s1=True)
+    layer_conf = dict(
+            layer2=dict(conv=dict(k=3, p=1, d=1, s=2),
+                        down=dict(k=1, p=0, d=1, s=2)),
+            layer3=dict(conv=dict(k=3, p=1, d=1, s=2),
+                        down=dict(k=1, p=0, d=1, s=2)),
+            layer4=dict(conv=dict(k=3, p=2, d=2, s=1),
+                        down=dict(k=1, p=0, d=1, s=1)))
+    model = net(layer_conf=layer_conf)
     if pretrained_path:
         print('loading weight!')
         model_dict=torch.load(pretrained_path, map_location='cpu')['state_dict']
@@ -21,7 +43,8 @@ def get_model(pretrained_path=None):
     return model
 
 
-def parse_wider_offset(Y,img_h_new,img_w_new, score=0.1, down=4, nmsthre=0.5):
+def parse_wider_offset(Y, img_h_new, img_w_new, score=0.1, down=4,
+                       nmsthre=0.5):
     seman = Y[0][0, :, :, 0]
     height = Y[1][0, :, :, 0]
     width = Y[1][0, :, :, 1]
@@ -39,11 +62,10 @@ def parse_wider_offset(Y,img_h_new,img_w_new, score=0.1, down=4, nmsthre=0.5):
             x1, y1 = max(0, (x_c[i] + o_x + 0.5) * down - w / 2), max(
                 0, (y_c[i] + o_y + 0.5) * down - h / 2)
             x1, y1 = min(x1, img_w_new), min(y1, img_h_new)
-            boxs.append([
-                x1, y1,
-                min(x1 + w, img_w_new),
-                min(y1 + h, img_h_new), s
-            ])
+            boxs.append(
+                [x1, y1,
+                 min(x1 + w, img_w_new),
+                 min(y1 + h, img_h_new), s])
         boxs = np.asarray(boxs, dtype=np.float32)
         # keep = nms(boxs, nmsthre, usegpu=False, gpu_id=0)
         # boxs = boxs[keep, :]
@@ -108,16 +130,9 @@ def soft_bbox_vote(det, thre=0.35, score=0.05):
     return dets
 
 
-
-
-
 mean = np.array([0.485, 0.456, 0.406]).reshape(1, 1, 3).astype(np.float32)
 std = np.array([0.229, 0.224, 0.225]).reshape(1, 1, 3).astype(np.float32)
 
-os.environ["CUDA_VISIBLE_DEVICES"] = '0'
-cache_path = 'data/cache/widerface/val'
-out_path = 'data/eval/resnet18_s1_conv4_conv2_gn_last_easy'
-pretrained_path = '/data/users/mayx/model_last_gn.pth'
 with open(cache_path, 'rb') as fid:
     val_data = pickle.load(fid, encoding='latin1')
 num_imgs = len(val_data)
@@ -154,10 +169,10 @@ for f in tqdm(range(num_imgs)):
         img = img / 255
         img = img[..., [2, 1, 0]]
         img = (img - mean) / std
-        img = torch.tensor(img).permute(2,0,1).unsqueeze(0)
+        img = torch.tensor(img).permute(2, 0, 1).unsqueeze(0)
         return img
 
-    def detect_face(img, scale=1, flip=False):
+    def detect_face(img, scale=1, flip=False,nms=True):
         img_h, img_w = img.shape[:2]
         img_h_new, img_w_new = int(np.ceil(scale * img_h / 16) * 16), int(
             np.ceil(scale * img_w / 16) * 16)
@@ -172,7 +187,6 @@ for f in tqdm(range(num_imgs)):
         # img_h, img_w = img_s.shape[:2]
         # print frame_number
 
-
         if flip:
             img_ = cv2.flip(img_s, 1)
             # x_rcnn = format_img_pad(img_sf, C)
@@ -182,8 +196,16 @@ for f in tqdm(range(num_imgs)):
             img = pre_process(img_s)
         with torch.no_grad():
             output = model(img.cuda())
-            output=[output['hm'].cpu().detach().permute(0,2,3,1).numpy(),output['wh'].cpu().detach().permute(0,2,3,1).numpy(),output['offset'].cpu().detach().permute(0,2,3,1).numpy()]
-        boxes = parse_wider_offset(output,img_h_new,img_w_new,
+            if nms:
+                output['hm'] = _nms(output['hm'])
+            output = [
+                output['hm'].cpu().detach().permute(0, 2, 3, 1).numpy(),
+                output['wh'].cpu().detach().permute(0, 2, 3, 1).numpy(),
+                output['offset'].cpu().detach().permute(0, 2, 3, 1).numpy()
+            ]
+        boxes = parse_wider_offset(output,
+                                   img_h_new,
+                                   img_w_new,
                                    score=0.05,
                                    nmsthre=0.6)
         if len(boxes) > 0:
@@ -200,17 +222,99 @@ for f in tqdm(range(num_imgs)):
             boxes = np.empty(shape=[0, 5], dtype=np.float32)
         return boxes
 
-    def im_det_ms_pyramid(image, max_im_shrink):
+    def detect_face_small_normal(img, scale=1, flip=False, nms=False):
+        img_h, img_w = img.shape[:2]
+        img_h_new, img_w_new = int(np.ceil(scale * img_h / 16) * 16), int(
+            np.ceil(scale * img_w / 16) * 16)
+        scale_h, scale_w = img_h_new / img_h, img_w_new / img_w
+
+        img_s = cv2.resize(img,
+                           None,
+                           None,
+                           fx=scale_w,
+                           fy=scale_h,
+                           interpolation=cv2.INTER_LINEAR)
+        # img_h, img_w = img_s.shape[:2]
+        # print frame_number
+
+        if flip:
+            img_ = cv2.flip(img_s, 1)
+            # x_rcnn = format_img_pad(img_sf, C)
+            img = pre_process(img_)
+        else:
+            # x_rcnn = format_img_pad(img_s, C)
+            img = pre_process(img_s)
+        with torch.no_grad():
+            output = model(img.cuda())
+            if nms:
+                output['hm'] = _nms(output['hm'])
+            if nms:
+                output['hm_small'] = _nms(output['hm_small'])
+            output_s = [
+                output['hm_small'].cpu().detach().permute(0, 2, 3, 1).numpy(),
+                output['wh_small'].cpu().detach().permute(0, 2, 3, 1).numpy(),
+                output['offset_small'].cpu().detach().permute(0, 2, 3,
+                                                              1).numpy()
+            ]
+            output_n = [
+                output['hm'].cpu().detach().permute(0, 2, 3, 1).numpy(),
+                output['wh'].cpu().detach().permute(0, 2, 3, 1).numpy(),
+                output['offset'].cpu().detach().permute(0, 2, 3, 1).numpy()
+            ]
+
+        boxes_s = parse_wider_offset(output_s,
+                                     img_h_new,
+                                     img_w_new,
+                                     score=0.05,
+                                     nmsthre=0.6,
+                                     down=2)
+        boxes_n = parse_wider_offset(output_n,
+                                     img_h_new,
+                                     img_w_new,
+                                     score=0.05,
+                                     nmsthre=0.6)
+        if len(boxes_s) > 0:
+            keep_index = np.where(
+                ((boxes_s[:, 2] - boxes_s[:, 0]) *
+                 (boxes_s[:, 3] - boxes_s[:, 1]))**0.5 <= 14)[0]
+            boxes_s = boxes_s[keep_index, :]
+        if len(boxes_n) > 0:
+            keep_index = np.where(
+                ((boxes_n[:, 2] - boxes_n[:, 0]) *
+                 (boxes_n[:, 3] - boxes_n[:, 1]))**0.5 >= 12)[0]
+            boxes_n = boxes_n[keep_index, :]
+        if len(boxes_s) > 0 and len(boxes_n) > 0:
+            boxes = np.row_stack((boxes_s, boxes_n))
+        elif len(boxes_s) > 0:
+            boxes = boxes_s
+        elif len(boxes_n) > 0:
+            boxes = boxes_n
+        else:
+            boxes = np.empty(shape=[0, 5], dtype=np.float32)
+        if len(boxes) > 0:
+            if flip:
+                boxes[:, [0, 2]] = img_s.shape[1] - boxes[:, [2, 0]]
+            boxes[:, 0:4:2] = boxes[:, 0:4:2] / scale_w
+            boxes[:, 1:4:2] = boxes[:, 1:4:2] / scale_h
+        else:
+            boxes = np.empty(shape=[0, 5], dtype=np.float32)
+        return boxes
+
+    def im_det_ms_pyramid(image, max_im_shrink, mode=0):
+        if mode == 0:
+            detector = detect_face
+        elif mode == 1:
+            detector = detect_face_small_normal
         # shrink detecting and shrink only detect big face
-        det_s = np.row_stack(
-            (detect_face(image, 0.5), detect_face(image, 0.5, flip=True)))
+        det_s = np.row_stack((detector(image,
+                                       0.5), detector(image, 0.5, flip=True)))
         index = np.where(
             np.maximum(det_s[:, 2] - det_s[:, 0] + 1, det_s[:, 3] -
                        det_s[:, 1] + 1) > 64)[0]
         det_s = det_s[index, :]
 
         det_temp = np.row_stack(
-            (detect_face(image, 0.75), detect_face(image, 0.75, flip=True)))
+            (detector(image, 0.75), detector(image, 0.75, flip=True)))
         index = np.where(
             np.maximum(det_temp[:, 2] - det_temp[:, 0] + 1, det_temp[:, 3] -
                        det_temp[:, 1] + 1) > 32)[0]
@@ -218,20 +322,20 @@ for f in tqdm(range(num_imgs)):
         det_s = np.row_stack((det_s, det_temp))
 
         det_temp = np.row_stack(
-            (detect_face(image, 0.25), detect_face(image, 0.25, flip=True)))
+            (detector(image, 0.25), detector(image, 0.25, flip=True)))
         index = np.where(
             np.maximum(det_temp[:, 2] - det_temp[:, 0] + 1, det_temp[:, 3] -
                        det_temp[:, 1] + 1) > 96)[0]
         det_temp = det_temp[index, :]
         det_s = np.row_stack((det_s, det_temp))
 
-        # st = [1.25, 1.5, 1.75, 2.0, 2.25]
-        st =[0.75,0.5,0.25] 
+        # st = [0.5, 1.5, 2.0]
+        st = [1.25, 1.5, 1.75, 2.0, 2.25]
         for i in range(len(st)):
             if (st[i] <= max_im_shrink):
                 det_temp = np.row_stack(
-                    (detect_face(image,
-                                 st[i]), detect_face(image, st[i], flip=True)))
+                    (detector(image, st[i]), detector(image, st[i],
+                                                      flip=True)))
                 # Enlarged images are only used to detect small faces.
                 if st[i] == 1.25:
                     index = np.where(
@@ -282,20 +386,23 @@ for f in tqdm(range(num_imgs)):
         0x7fffffff / 577.0 /
         (img.shape[0] * img.shape[1]))**0.5  # the max size of input image
     shrink = max_im_shrink if max_im_shrink < 1 else 1
-    det0 = detect_face(img)
-    det1 = detect_face(img, flip=True)
-    det2 = im_det_ms_pyramid(img, max_im_shrink)
+    if mode==1:
+        detector=detect_face_small_normal
+    else:
+        detector=detect_face
+    det0 = detector(
+        img,
+        nms=False,
+    )
+    det1 = detector(img, flip=True,nms=False)
+    det2 = im_det_ms_pyramid(img, max_im_shrink,mode=mode)
     # merge all test results via bounding box voting
     det = np.row_stack((det0, det1, det2))
-    # det=det0
-    keep_index = np.where(
-        np.minimum(det[:, 2] - det[:, 0], det[:, 3] - det[:, 1]) >= 3)[0]
+    keep_index = np.where(np.minimum(det[:, 2] - det[:, 0], det[:, 3] - det[:, 1]) >= 3)[0]
     det = det[keep_index, :]
     dets = soft_bbox_vote(det, thre=0.4)
-    keep_index = np.where((dets[:, 2] - dets[:, 0] + 1) *
-                          (dets[:, 3] - dets[:, 1] + 1) >= 6**2)[0]
+    keep_index = np.where((dets[:, 2] - dets[:, 0] + 1) * (dets[:, 3] - dets[:, 1] + 1) >= 6 ** 2)[0]
     dets = dets[keep_index, :]
-
     with open(txtpath, 'w') as f:
         f.write('{:s}\n'.format(filename))
         f.write('{:d}\n'.format(len(dets)))

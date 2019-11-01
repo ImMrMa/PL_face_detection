@@ -44,7 +44,7 @@ def conv3x3(in_planes, out_planes, stride=1, groups=1, dilation=1):
                      dilation=dilation)
 
 
-def conv4x4(in_planes, out_planes, stride=1, groups=1, dilation=1,padding=1):
+def conv4x4(in_planes, out_planes, stride=1, groups=1, dilation=1, padding=1):
     """3x3 convolution with padding"""
     return nn.Conv2d(in_planes,
                      out_planes,
@@ -56,7 +56,7 @@ def conv4x4(in_planes, out_planes, stride=1, groups=1, dilation=1,padding=1):
                      dilation=dilation)
 
 
-def conv2x2(in_planes, out_planes, stride=1, groups=1, dilation=1,padding=0):
+def conv2x2(in_planes, out_planes, stride=1, groups=1, dilation=1, padding=0):
     """3x3 convolution with padding"""
     return nn.Conv2d(in_planes,
                      out_planes,
@@ -90,6 +90,28 @@ class L2Norm(nn.Module):
         return x
 
 
+class InceptionBlock(nn.Module):
+    def __init__(self, multi_large=False,):
+        super(InceptionBlock, self).__init__()
+        self.multi_large = multi_large
+
+        self.convs = nn.ModuleList(
+            [nn.Conv2d(in_channels=16, out_channels=2, kernel_size=1, stride=1, padding=0, bias=False),
+             nn.Conv2d(in_channels=16, out_channels=8, kernel_size=3,
+                       stride=1, padding=1, bias=False),
+             nn.Conv2d(in_channels=16, out_channels=3, kernel_size=5,
+                       stride=1, padding=2, bias=False),
+             nn.Conv2d(in_channels=16, out_channels=3, kernel_size=7, stride=1, padding=3, bias=False)]
+        )
+
+    def forward(self, x):
+        output = []
+        for conv_module in self.convs:
+            output.append(conv_module(x))
+        x = torch.cat(output, 1)
+        return x
+
+
 class BasicBlock(nn.Module):
     expansion = 1
 
@@ -102,25 +124,22 @@ class BasicBlock(nn.Module):
                  base_width=64,
                  dilation=1,
                  norm_layer=None,
-                 conv4=False,
-                 conv2=False,
-                 replace_with_bn=False):
+                 replace_with_bn=False,
+                 layer_conv=None):
         super(BasicBlock, self).__init__()
         self.norm_layer = norm_layer
-        if conv4 and conv2:
-            raise ValueError('wrong!')
         if groups != 1 or base_width != 64:
             raise ValueError(
                 'BasicBlock only supports groups=1 and base_width=64')
-        # if dilation > 1:
-        #     raise NotImplementedError("Dilation > 1 not supported in BasicBlock")
-        # Both self.conv1 and self.downsample layers downsample the input when stride != 1
-        if conv4 and dilation == 1:
-            self.conv1 = conv4x4(inplanes, planes, stride, dilation=dilation)
-        elif conv2 and dilation == 1:
-            self.conv1 = conv2x2(inplanes, planes, stride, dilation=dilation)
-        elif dilation>1:
-            self.conv1 = conv4x4(inplanes, planes, stride, dilation=dilation,padding=3)
+        if layer_conv:
+            self.conv1 = nn.Conv2d(inplanes,
+                                   planes,
+                                   kernel_size=layer_conv['k'],
+                                   stride=layer_conv['s'],
+                                   padding=layer_conv['p'],
+                                   groups=groups,
+                                   bias=False,
+                                   dilation=layer_conv['d'])
         else:
             self.conv1 = conv3x3(inplanes, planes, stride, dilation=dilation)
         if replace_with_bn:
@@ -164,23 +183,26 @@ class Bottleneck(nn.Module):
                  base_width=64,
                  dilation=1,
                  norm_layer=None,
-                 conv4=False,
-                 conv2=False,
-                 replace_with_bn=False):
+                 replace_with_bn=False,
+                 layer_conv=None):
         super(Bottleneck, self).__init__()
         self.norm_layer = norm_layer
         width = int(planes * (base_width / 64.)) * groups
         # Both self.conv2 and self.downsample layers downsample the input when stride != 1
         self.conv1 = conv1x1(inplanes, width)
         self.bn1 = norm_layer(width)
-        if conv4 and dilation == 1:
-            self.conv2 = conv4x4(width, width, stride, groups)
-        elif conv2 and dilation == 1:
-            self.conv2 = conv2x2(width, width, stride, groups)
-        elif dilation>1:
-            self.conv1 = conv4x4(inplanes, planes, stride, dilation=dilation,padding=3)
+        if layer_conv:
+            self.conv2 = nn.Conv2d(width,
+                                   width,
+                                   kernel_size=layer_conv['k'],
+                                   stride=layer_conv['s'],
+                                   padding=layer_conv['p'],
+                                   groups=groups,
+                                   bias=False,
+                                   dilation=layer_conv['d'])
+            stride=layer_conv['s']
         else:
-            self.conv1=conv3x3(in_planes,out_planes)
+            self.conv2 = conv3x3(width, width, stride, dilation=dilation)
         if replace_with_bn:
             norm_layer = group_norm
         self.bn2 = norm_layer(width)
@@ -197,7 +219,6 @@ class Bottleneck(nn.Module):
         out = self.conv1(x)
         out = self.bn1(out)
         out = self.relu(out)
-
         out = self.conv2(out)
         out = self.bn2(out)
         out = self.relu(out)
@@ -218,26 +239,38 @@ class ResNet(nn.Module):
     def __init__(self,
                  block,
                  layers,
+                 layer_conf=dict(),
                  num_classes=1000,
                  zero_init_residual=False,
                  groups=1,
                  width_per_group=64,
                  replace_stride_with_dilation=None,
                  norm_layer=None,
-                 conv4=False,
-                 conv2=False,
                  change_s1=False,
-                 conv4_conv2=False,
                  replace_with_bn=False,
-                 all_gn=False,mask_layer=False):
+                 all_gn=False, mulit_stage=False):
         super(ResNet, self).__init__()
+        self.mulit_stage = mulit_stage
+        self.layer_conf = dict(
+            layer0=dict(conv=dict(k=4, p=1, d=1, s=2),
+                        down=dict(k=2, p=0, d=1, s=2)),
+            layer1=dict(conv=dict(k=4, p=1, d=1, s=2),
+                        down=dict(k=2, p=0, d=1, s=2)),
+            layer2=dict(conv=dict(k=4, p=1, d=1, s=2),
+                        down=dict(k=2, p=0, d=1, s=2)),
+            layer3=dict(conv=dict(k=4, p=1, d=1, s=2),
+                        down=dict(k=2, p=0, d=1, s=2)),
+            layer4=dict(conv=dict(k=4, p=3, d=2, s=1),
+                        down=dict(k=1, p=0, d=1, s=1)))
+        layer_conf_conv4_conv2 = dict(conv=dict(k=4, p=1, d=1, s=2),
+                                      down=dict(k=2, p=0, d=1, s=2))
+        self.layer_conf.update(layer_conf)
+        layer_conf = self.layer_conf
         if all_gn:
             bn_layer = group_norm
         else:
             bn_layer = nn.BatchNorm2d
-        print(all_gn)
-        print(bn_layer)
-        input('s')
+
         norm_layer = bn_layer
         self._norm_layer = norm_layer
 
@@ -250,17 +283,8 @@ class ResNet(nn.Module):
         self.inplanes = 64
         self.dilation = 1
         self.change_s1 = change_s1
-        if replace_stride_with_dilation is None:
-            # each element in the tuple indicates if we should replace
-            # the 2x2 stride with a dilated convolution instead
-            replace_stride_with_dilation = [False, False, False]
-        if len(replace_stride_with_dilation) != 3:
-            raise ValueError("replace_stride_with_dilation should be None "
-                             "or a 3-element tuple, got {}".format(
-                                 replace_stride_with_dilation))
         self.groups = groups
         self.base_width = width_per_group
-
         if change_s1:
             if replace_with_bn:
                 norm_layer = group_norm
@@ -277,22 +301,20 @@ class ResNet(nn.Module):
                                             16,
                                             1,
                                             stride=1,
-                                            conv4_conv2=conv4_conv2)
+                                            )
             self.layer0 = self._make_layer(block,
                                            32,
                                            2,
                                            stride=2,
-                                           conv2=conv2,
-                                           conv4=conv4,
-                                           conv4_conv2=conv4_conv2)
+                                           layer_conf=layer_conf['layer0']
+                                           )
             norm_layer = self._norm_layer
             self.layer1 = self._make_layer(block,
                                            64,
                                            layers[0],
                                            stride=2,
-                                           conv2=conv2,
-                                           conv4=conv4,
-                                           conv4_conv2=conv4_conv2)
+                                           layer_conf=layer_conf['layer1']
+                                           )
         else:
             self.conv1 = nn.Conv2d(3,
                                    self.inplanes,
@@ -307,33 +329,145 @@ class ResNet(nn.Module):
                                            64,
                                            layers[0],
                                            stride=1,
-                                           conv4_conv2=conv4_conv2)
+                                           )
+        if mulit_stage:
+            if change_s1:
+                self.inplanes = 16
+                self.layer_i0_2x = nn.Sequential(
+                    nn.Conv2d(3,
+                              16,
+                              kernel_size=4,
+                              stride=2,
+                              padding=1,
+                              bias=False), norm_layer(self.inplanes),
+                    nn.ReLU(inplace=True))
+                self.layer_i1_2x = nn.Sequential(
+                    InceptionBlock(),
+                    norm_layer(16),
+                    nn.ReLU(inplace=True)
+                )
+                self.layer0_2x = self._make_layer(block,
+                                                  32,
+                                                  1,
+                                                  stride=2,
+                                                  layer_conf=layer_conf_conv4_conv2
+                                                  )
+                self.layer1_2x = self._make_layer(block,
+                                                  32,
+                                                  2,
+                                                  stride=2,
+                                                  layer_conf=layer_conf_conv4_conv2
+                                                  )
+                self.layer_fuse = nn.Sequential(
+                    nn.Conv2d(96,
+                              64,
+                              kernel_size=3,
+                              stride=1,
+                              padding=1,
+                              bias=False), norm_layer(64),
+                    nn.ReLU(inplace=True))
+                self.n2_2x = L2Norm(32)
+            else:
+                self.inplanes = 16
+                self.conv1_s = nn.Conv2d(3,
+                                         self.inplanes,
+                                         kernel_size=7,
+                                         stride=2,
+                                         padding=3,
+                                         bias=False)
+                self.bn1_s = norm_layer(self.inplanes)
+                self.relu_s = nn.ReLU(inplace=True)
+                self.maxpool_s = nn.MaxPool2d(
+                    kernel_size=3, stride=2, padding=1)
+                self.layer0_s = self._make_layer(block,
+                                                 16,
+                                                 1,
+                                                 layer_conf=dict(
+                                                     conv=dict(k=3, p=1, s=1, d=1), down=dict(k=1, p=0, s=1, d=1))
+                                                 )
+                self.layer1_s = self._make_layer(block,
+                                                 16,
+                                                 2,
+                                                 layer_conf=dict(conv=dict(k=3, p=1, s=2, d=1),
+                                                                 down=dict(k=1, p=0, s=2, d=1))
+                                                 )
+                self.layer_fuse = nn.Sequential(
+                    nn.Conv2d((64+16)*block.expansion,
+                              64*block.expansion,
+                              kernel_size=3,
+                              stride=1,
+                              padding=1,
+                              bias=False), norm_layer(64*block.expansion),
+                    nn.ReLU(inplace=True))
+                self.s2_2x_up=nn.Conv2d(16*block.expansion,
+                              64,
+                              kernel_size=3,
+                              stride=1,
+                              padding=1,
+                              bias=False)
+                self.n2_2x = L2Norm(64)
+            self.n2 = L2Norm(64)
+            self.s2_up = nn.ConvTranspose2d(in_channels=64*block.expansion,
+                                            out_channels=64,
+                                            kernel_size=4,
+                                            stride=2,
+                                            padding=1,
+                                            output_padding=0,
+                                            bias=False)
+            self.n_cat = L2Norm(64)
+            self.s_conv_s = nn.Sequential(
+                nn.Conv2d(in_channels=64+64+64,
+                          out_channels=64,
+                          kernel_size=3,
+                          stride=1,
+                          padding=1,
+                          bias=False), norm_layer(64),
+                nn.ReLU(inplace=True))
+            self.hm_s = nn.Sequential(
+                nn.Conv2d(
+                    in_channels=64,
+                    out_channels=1,
+                    kernel_size=1,
+                    stride=1,
+                    padding=0,
+                ), nn.Sigmoid())
+            self.wh_s = nn.Sequential(
+                nn.Conv2d(
+                    in_channels=64,
+                    out_channels=2,
+                    kernel_size=1,
+                    stride=1,
+                    padding=0,
+                ))
+            self.offset_s = nn.Sequential(
+                nn.Conv2d(
+                    in_channels=64,
+                    out_channels=2,
+                    kernel_size=1,
+                    stride=1,
+                    padding=0,
+                ))
+        self.inplanes = 64*block.expansion
         self.inplanes_s2 = self.inplanes
         self.layer2 = self._make_layer(block,
                                        128,
                                        layers[1],
                                        stride=2,
-                                       dilate=replace_stride_with_dilation[0],
-                                       conv4=conv4,
-                                       conv2=conv2,
-                                       conv4_conv2=conv4_conv2)
+                                       layer_conf=layer_conf['layer2']
+                                       )
         self.inplanes_s3 = self.inplanes
         self.layer3 = self._make_layer(block,
                                        256,
                                        layers[2],
                                        stride=2,
-                                       dilate=replace_stride_with_dilation[1],
-                                       conv4=conv4,
-                                       conv2=conv2,
-                                       conv4_conv2=conv4_conv2)
+                                       layer_conf=layer_conf['layer3']
+                                       )
         self.inplanes_s4 = self.inplanes
         self.layer4 = self._make_layer(block,
                                        512,
                                        layers[3],
                                        stride=2,
-                                       dilate=replace_stride_with_dilation[2],
-                                       conv4=conv4,
-                                       conv4_conv2=conv4_conv2)
+                                       layer_conf=layer_conf['layer4'])
         self.inplanes_s5 = self.inplanes
         self.s3_up = nn.ConvTranspose2d(in_channels=self.inplanes_s3,
                                         out_channels=transform_planes,
@@ -356,9 +490,18 @@ class ResNet(nn.Module):
                                         padding=0,
                                         output_padding=0,
                                         bias=False)
+
         self.n3 = L2Norm(transform_planes)
         self.n4 = L2Norm(transform_planes)
         self.n5 = L2Norm(transform_planes)
+
+        self.cat_up = nn.ConvTranspose2d(in_channels=transform_planes,
+                                         out_channels=64,
+                                         kernel_size=4,
+                                         stride=2,
+                                         padding=1,
+                                         output_padding=0,
+                                         bias=False)
         self.s_conv = nn.Sequential(
             nn.Conv2d(in_channels=transform_planes * 3,
                       out_channels=transform_planes,
@@ -391,16 +534,7 @@ class ResNet(nn.Module):
                 stride=1,
                 padding=0,
             ))
-        self.mask_layer=mask_layer
-        if mask_layer:
-            self.mask=nn.Sequential(
-            nn.Conv2d(
-                in_channels=transform_planes,
-                out_channels=1,
-                kernel_size=1,
-                stride=1,
-                padding=0,
-            ),nn.Sigmoid())
+
         # for m in self.modules():
         #     if isinstance(m, nn.Conv2d):
         #         nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
@@ -423,36 +557,29 @@ class ResNet(nn.Module):
                     planes,
                     blocks,
                     stride=1,
-                    dilate=False,
-                    conv4=False,
-                    conv2=False,
-                    conv4_conv2=False,
-                    replace_with_bn=False):
+                    replace_with_bn=False,
+                    layer_conf=dict(conv=dict(k=3, p=1, s=1, d=1), down=dict(k=1, p=0, s=1, d=1))):
+        down = layer_conf['down']
+        conv = layer_conf['conv']
         norm_layer = self._norm_layer
         downsample = None
-        previous_dilation = self.dilation
-        if dilate:
-            self.dilation *= stride
-            print(previous_dilation)
-            input('s')
-            stride = 1
+        self.dilation = conv['d']
+        stride=conv['s']
         if stride != 1 or self.inplanes != planes * block.expansion:
-            if conv4_conv2 and stride != 1:
-                if replace_with_bn:
-                    norm_layer = group_norm
-                downsample = nn.Sequential(
-                    conv2x2(self.inplanes, planes * block.expansion, stride),
-                    norm_layer(planes * block.expansion),
-                )
-                norm_layer = self._norm_layer
-            else:
-                downsample = nn.Sequential(
-                    conv1x1(self.inplanes, planes * block.expansion, stride),
-                    norm_layer(planes * block.expansion),
-                )
-
+            if replace_with_bn:
+                norm_layer = group_norm
+            downsample = nn.Sequential(
+                nn.Conv2d(self.inplanes,
+                          planes * block.expansion,
+                          kernel_size=down['k'],
+                          stride=down['s'],
+                          padding=down['p'],
+                          bias=False,
+                          dilation=down['d']),
+                norm_layer(planes * block.expansion),
+            )
+            norm_layer = self._norm_layer
         layers = []
-
         layers.append(
             block(self.inplanes,
                   planes,
@@ -460,10 +587,8 @@ class ResNet(nn.Module):
                   downsample,
                   self.groups,
                   self.base_width,
-                  self.dilation,
-                  norm_layer,
-                  conv4=conv4,
-                  conv2=conv2,
+                  norm_layer=norm_layer,
+                  layer_conv=conv,
                   replace_with_bn=replace_with_bn))
         self.inplanes = planes * block.expansion
         for _ in range(1, blocks):
@@ -473,11 +598,12 @@ class ResNet(nn.Module):
                       groups=self.groups,
                       base_width=self.base_width,
                       dilation=self.dilation,
-                      norm_layer=norm_layer))
+                      norm_layer=norm_layer))   
 
         return nn.Sequential(*layers)
 
     def forward(self, x):
+        img = x
         if self.change_s1:
             x = self.layeri0(x)
             x = self.layeri1(x)
@@ -489,6 +615,25 @@ class ResNet(nn.Module):
             x = self.relu(x)
             x = self.maxpool(x)
             s2 = self.layer1(x)
+        if self.mulit_stage:
+            x = nn.functional.interpolate(img, scale_factor=2, mode='bilinear')
+            if self.change_s1:
+                x = self.layer_i0_2x(x)
+                x = self.layer_i1_2x(x)
+                s2_2x = self.layer0_2x(x)
+                s2_4x = self.layer1_2x(s2_2x)
+                s2 = torch.cat([s2, s2_4x], 1)
+                s2 = self.layer_fuse(s2)
+            else:
+                x = self.conv1_s(x)
+                x = self.bn1_s(x)
+                x = self.relu_s(x)
+                x = self.maxpool_s(x)
+                s2_2x = self.layer0_s(x)
+                s2_4x = self.layer1_s(s2_2x)
+                s2_2x=self.s2_2x_up(s2_2x)
+                s2 = torch.cat([s2, s2_4x], 1)
+                s2 = self.layer_fuse(s2)
         s3 = self.layer2(s2)
         s4 = self.layer3(s3)
         s5 = self.layer4(s4)
@@ -500,13 +645,25 @@ class ResNet(nn.Module):
         s5 = self.n5(s5)
         s_cat = torch.cat([s3, s4, s5], 1)
         s_cat = self.s_conv(s_cat)
+
         hm = self.hm(s_cat)
         wh = self.wh(s_cat)
         offset = self.offset(s_cat)
-        return_data=dict(hm=hm, wh=wh, offset=offset)
-        if self.mask_layer:
-            mask=self.mask(s_cat)
-            return_data['mask']=mask
+        return_data = dict(hm=hm, wh=wh, offset=offset)
+        if self.mulit_stage:
+            s_cat = self.cat_up(s_cat)
+            s_cat = self.n_cat(s_cat)
+            s2 = self.s2_up(s2)
+            s2 = self.n2(s2)
+            s2_2x = self.n2_2x(s2_2x)
+            s_cat_s = torch.cat([s_cat, s2, s2_2x], 1)
+            s_cat_s = self.s_conv_s(s_cat_s)
+            hm_small = self.hm_s(s_cat_s)
+            wh_small = self.wh_s(s_cat_s)
+            offset_small = self.offset_s(s_cat_s)
+            return_data.update(dict(hm_small=hm_small,
+                            wh_small=wh_small, offset_small=offset_small))
+        
         return return_data
 
     def init_weights(
@@ -518,30 +675,39 @@ class ResNet(nn.Module):
             if 'state_dict' in pretrained_dict.keys():
                 pretrained_dict = pretrained_dict['state_dict']
             elif 'model' in pretrained_dict.keys():
-                pretrained_dict=pretrained_dict['model']
-                new_dict=dict()
-                for k,v in pretrained_dict.items():
-                    new_dict[k[7:]]=v
-                pretrained_dict=new_dict
+                pretrained_dict = pretrained_dict['model']
+                new_dict = dict()
+                for k, v in pretrained_dict.items():
+                    new_dict[k[7:]] = v
+                pretrained_dict = new_dict
         elif pretrained:
-            pretrained_dict = load_state_dict_from_url(model_urls[pretrained],map_location='cpu')
+            pretrained_dict = load_state_dict_from_url(
+                model_urls[pretrained], map_location='cpu')
             # self.load_state_dict(pretrained_dict)
         model_dict = self.state_dict()
         if pretrained:
-            pretrained_dict = {
-                k: v
-                for k, v in pretrained_dict.items()
-                if k in model_dict.keys() and v.shape == model_dict[k].shape #and 'bn' not in k
-            }
-            # for k,v in self.named_parameters():
-            #     v.requires_grad=False
-            #     if 'layer2' in k:
-            #         break
+            temp_dict=dict()
+            for k, v in pretrained_dict.items():
+                if k in model_dict.keys() and v.shape==model_dict[k].shape:
+                    temp_dict[k]=v
+                else:
+                    print(k)
+            input('miss params')
+            pretrained_dict=temp_dict
         else:
             pretrained_dict = self.state_dict()
-        # for k,v in self.named_parameters():
-        #     if 'bn' in k:
-        #         v.requires_grad=False
+        # for k, v in self.named_parameters():
+        #     if 'layer_i0_2x' in k:
+        #         break
+        #     v.requires_grad = False
+        for k, v in self.named_parameters():
+            if 'conv1_s' in k:
+                break
+            v.requires_grad=False
+
+            # if 'bn' in k and k in pretrained_dict.keys():
+            print(k, v.shape)
+        input('model_parameters:')
         for k, v in self.named_parameters():
             if 'hm' in k:
                 if 'bias' in k:
@@ -551,9 +717,7 @@ class ResNet(nn.Module):
         input('grad:')
         model_dict.update(pretrained_dict)
         self.load_state_dict(model_dict)
-        for k, v in self.named_parameters():
-            print(k, v.shape)
-        input('model_parameters:')
+
         for k, v in pretrained_dict.items():
             print(k, v.shape)
         input('pretrained_parameters')
@@ -564,7 +728,7 @@ def _resnet(arch, block, layers, pretrained, progress, **kwargs):
     print(kwargs)
     input('s')
     if pretrained:
-        model.init_weights(pretrained='/home/mayx/project/resnet_new_loader/log/resnet18-10_21-13_56/58_0.64-13_00.pth')
+        model.init_weights(pretrained=arch)
     print(model)
     input('s')
     return model
@@ -581,7 +745,6 @@ def resnet18(pretrained=True, progress=True, **kwargs):
                    BasicBlock, [2, 2, 2, 2],
                    pretrained,
                    progress,
-                   replace_stride_with_dilation=[False, False, True],
                    **kwargs)
 
 
@@ -592,24 +755,38 @@ def resnet50(pretrained=True, progress=True, **kwargs):
         pretrained (bool): If True, returns a model pre-trained on ImageNet
         progress (bool): If True, displays a progress bar of the download to stderr
     """
+    
     return _resnet('resnet50',
                    Bottleneck, [3, 4, 6, 3],
                    pretrained,
                    progress,
-                   replace_stride_with_dilation=[False, False, True],
                    **kwargs)
 
 
 def test():
     import torch
-    net = resnet18(conv4=True)
+    layer_conf = dict(
+            layer2=dict(conv=dict(k=3, p=1, d=1, s=2),
+                        down=dict(k=1, p=0, d=1, s=2)),
+            layer3=dict(conv=dict(k=3, p=1, d=1, s=2),
+                        down=dict(k=1, p=0, d=1, s=2)),
+            layer4=dict(conv=dict(k=3, p=2, d=2, s=1),
+                        down=dict(k=1, p=0, d=1, s=1)))
+    net = resnet50(mulit_stage=True, change_s1=False,layer_conf=layer_conf)
+    net.cuda(3)
     for k, v in net.named_parameters():
         print(k)
     print(net)
-    a = torch.ones(1, 3, 255, 255)
-    b = net(a)
-    for name, output in b.items():
-        print(name, output.shape)
+    a = torch.ones(2, 3, 704, 704).cuda(3)
+    while True:
+        b = net(a)
+        c = 0
+        for name, output in b.items():
+            print(output.sum())
+            c += output.mean()
+            print(name, output.shape)
+        print(c)
+        c.backward()
     input('s')
 
 
