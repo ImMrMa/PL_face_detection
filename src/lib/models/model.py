@@ -17,26 +17,27 @@ from .networks.hr_net import get_hr_net
 from .networks.hr_net_multi import get_hr_net as get_hr_net_v2
 from .networks.resnet_csp_fpn import resnet18
 from .networks.layer_conf import resnet50 as cspfpn50
+from .networks.layer_conf import resnet18 as cspfpn18
 _model_factory = {
     'res': get_pose_net,  # default Resnet with deconv
     'dlav0': get_dlav0,  # default DLAup
     'dla': get_dla_dcn,
     'resdcn': get_pose_net_dcn,
     'hourglass': get_large_hourglass_net,
-    'deeplab_resnet101':get_deeplabv3plus,
-    'hrnet':get_hr_net,
-    'hrnetv2':get_hr_net_v2,
-    'cspfpn':resnet18,
-    'cspfpnmulti':cspfpn50
+    'deeplab_resnet101': get_deeplabv3plus,
+    'hrnet': get_hr_net,
+    'hrnetv2': get_hr_net_v2,
+    'cspfpn': resnet18,
+    'cspfpnmulti': cspfpn50,
+    'cspfpnmulti18': cspfpn18
 }
 
 
-def create_model(arch, heads, head_conv):
+def create_model(arch, heads, head_conv,pretrained=True):
     if 'deeplab' in arch:
         get_model = _model_factory[arch]
-        model=get_model()
-    elif 'cspfpnmulti' in arch:
-        get_model=_model_factory[arch]
+        model = get_model()
+    elif 'dspn' in arch:
         layer_conf = dict(
         layer2=dict(conv=dict(k=3, p=1, d=1, s=2),
                     down=dict(k=1, p=0, d=1, s=2)),
@@ -44,15 +45,31 @@ def create_model(arch, heads, head_conv):
                     down=dict(k=1, p=0, d=1, s=2)),
         layer4=dict(conv=dict(k=3, p=2, d=2, s=1),
                     down=dict(k=1, p=0, d=1, s=1)))
-        model=get_model(mulit_stage=True, change_s1=False,layer_conf=layer_conf)
-    elif 'cspfpn' in arch:
+        model=cspfpn50(mulit_stage=True, change_s1=True,layer_conf=layer_conf,pretrained=pretrained)
+    elif 'cspfpnmulti18' in arch:
         get_model=_model_factory[arch]
-        model=get_model(change_s1=True,conv4=True,conv4_conv2=True)#,conv4=True,conv4_conv2=True)
+        layer_conf = dict(
+        layer0=dict(conv=dict(k=4, p=1, d=1, s=2),
+                    down=dict(k=2, p=0, d=1, s=2)),
+        layer1=dict(conv=dict(k=4, p=1, d=1, s=2),
+                    down=dict(k=2, p=0, d=1, s=2)),
+        layer2=dict(conv=dict(k=4, p=1, d=1, s=2),
+                    down=dict(k=2, p=0, d=1, s=2)),
+        layer3=dict(conv=dict(k=4, p=1, d=1, s=2),
+                    down=dict(k=2, p=0, d=1, s=2)),
+        layer4=dict(conv=dict(k=4, p=3, d=2, s=1),
+                    down=dict(k=1, p=0, d=1, s=1)))
+        model=get_model(mulit_stage=True, change_s1=True,layer_conf=layer_conf,pretrained=pretrained)
+    elif 'cspfpn' in arch:
+        get_model = _model_factory[arch]
+        # ,conv4=True,conv4_conv2=True)
+        model = get_model(change_s1=True, conv4=True, conv4_conv2=True)
     else:
         num_layers = int(arch[arch.find('_') + 1:]) if '_' in arch else 0
         arch = arch[:arch.find('_')] if '_' in arch else arch
         get_model = _model_factory[arch]
-        model = get_model(num_layers=num_layers, heads=heads, head_conv=head_conv)
+        model = get_model(num_layers=num_layers,
+                          heads=heads, head_conv=head_conv)
     return model
 
 

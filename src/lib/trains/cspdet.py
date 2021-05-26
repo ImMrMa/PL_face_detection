@@ -19,17 +19,18 @@ from .base_trainer import BaseTrainer
 class HmLoss(torch.nn.Module):
     def __init__(self):
         super(HmLoss, self).__init__()
-        self.bce_loss = F.binary_cross_entropy
+        self.bce_loss = F.binary_cross_entropy_with_logits
 
     def forward(self, output, label):
         cls_loss = self.bce_loss(output[:, 0, ...],
                                  label[:, 2, ...],
                                  reduction='none')
+        sigmoid=output[:, 0, ...].sigmoid()
         positives = label[:, 2, :, :]
         negatives = label[:, 1, :, :] - label[:, 2, :, :]
-        foreground_weight = positives * ((1.0 - output[:, 0, :, :])**2)
+        foreground_weight = positives * ((1.0 - sigmoid)**2)
         background_weight = negatives * (
-            (1.0 - label[:, 0, :, :])**4.0) * (output[:, 0, :, :]**2)
+            (1.0 - label[:, 0, :, :])**4.0) * (sigmoid**2)
         focal_weight = foreground_weight + background_weight
         loss = torch.sum(focal_weight * cls_loss) / torch.clamp(
             torch.sum(label[:, 2, :, :]), 1)
@@ -37,17 +38,18 @@ class HmLoss(torch.nn.Module):
 class MaskLoss(torch.nn.Module):
     def __init__(self):
         super(MaskLoss, self).__init__()
-        self.bce_loss = F.binary_cross_entropy
+        self.bce_loss = F.binary_cross_entropy_with_logits
 
     def forward(self, output, label):
         cls_loss = self.bce_loss(output[:, 0, ...],
                                  label[:, 0, ...],
                                  reduction='none')
+        sigmoid=output[:, 0, ...].sigmoid()
         positives = label[:, 0, :, :]
         negatives = label[:, 0, :, :]==0
-        foreground_weight = positives * ((1.0 - output[:, 0, :, :])**2)
+        foreground_weight = positives * ((1.0 - sigmoid)**2)
         background_weight = negatives * (
-            (1.0 - label[:, 0, :, :])**4.0) * (output[:, 0, :, :]**2)
+            (1.0 - label[:, 0, :, :])**4.0) * (sigmoid**2)
         focal_weight = foreground_weight + background_weight
         loss = torch.sum(focal_weight * cls_loss) / torch.clamp(
             torch.sum(label[:, 2, :, :]), 1)

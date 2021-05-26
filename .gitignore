@@ -5,6 +5,10 @@ debug/*
 *.json
 *.mat
 src/.vscode/*
+data
+src/lightning_logs
+*.ckpt
+*.txt
 preds/*
 *.h5
 *.pth
@@ -112,3 +116,4 @@ ENV/
 # myself 
 #.pth
 
+src/lightning_logs/version_0/events.out.tfevents.1607589514.gpu-3090-2.9607.0

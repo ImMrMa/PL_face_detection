@@ -71,7 +71,7 @@ class BaseTrainer(object):
                     if isinstance(batch[k], list):
                         for i in range(len(batch[k])):
                             batch[k][i] = batch[k][i].to(device=opt.device,
-                                           non_blocking=True)   
+                                           non_blocking=True)
                     else:
                         batch[k] = batch[k].to(device=opt.device,
                                                non_blocking=True)

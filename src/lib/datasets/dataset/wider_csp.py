@@ -19,9 +19,9 @@ class WiderCsp():
 
         self.C = config.Config()
         if mode == 'train':
-            cache_path = '../data/cache/widerface/train'
+            cache_path = '/home/myx/project/face_detection/data/cache/widerface/train'
         elif mode == 'val':
-            cache_path = '../data/cache/widerface/val'
+            cache_path = '/home/myx/project/face_detection/data/cache/widerface/val'
         else:
             print('choose error opt')
         with open(cache_path, 'rb') as fid:
@@ -35,9 +35,9 @@ class WiderCsp():
     def __getitem__(self, index):
         C = self.C
         mask = False
-        small=False
+        small = True
         img_data, img = data_augment.augment_wider(
-            self.cache_data[index], C, mask=mask,default_resample=True,resmaple=True)
+            self.cache_data[index], C, mask=mask, default_resample=True, resmaple=True)
         label = self.calc_gt_center(C,
                                     img_data,
                                     down=4,
@@ -54,21 +54,21 @@ class WiderCsp():
         hm = hm.transpose(2, 0, 1).astype(np.float32)
         wh = wh.transpose(2, 0, 1).astype(np.float32)
         offset = offset.transpose(2, 0, 1).astype(np.float32)
-        
-        return_data = dict(input=img, hm=hm, wh=wh, offset=offset)a
+
+        return_data = dict(input=img, hm=hm, wh=wh, offset=offset)
         if small:
             label_small = self.calc_gt_center(C,
-                                             img_data,
-                                             down=2,
-                                             scale='hw',
-                                             offset=True,r=1)
-            hm_small,wh_small,offset_small=label_small[:3]
-            hm_small = hm_small.transpose(2,0,1).astype(np.float32)
-            wh_small = wh_small.transpose(2,0,1).astype(np.float32)
+                                              img_data,
+                                              down=2,
+                                              scale='hw',
+                                              offset=True, r=1)
+            hm_small, wh_small, offset_small = label_small[:3]
+            hm_small = hm_small.transpose(2, 0, 1).astype(np.float32)
+            wh_small = wh_small.transpose(2, 0, 1).astype(np.float32)
             offset_small = offset_small.transpose(2, 0, 1).astype(np.float32)
-            return_data['hm_small']=hm_small
-            return_data['wh_small']=wh_small
-            return_data['offset_small']=offset_small
+            return_data['hm_small'] = hm_small
+            return_data['wh_small'] = wh_small
+            return_data['offset_small'] = offset_small
         if mask:
             mask = mask.transpose(2, 0, 1).astype(np.float32)
             return_data['mask'] = mask
@@ -90,21 +90,21 @@ class WiderCsp():
         gts = np.copy(img_data['bboxes'])
 
         if down == 4:
-            ig_length=12
-            delete_indexs=[]
-            for index,box in enumerate(gts):
-                length=((box[3]-box[1])*(box[2]-box[0]))**0.5
-                if length<ig_length:
+            ig_length = 12
+            delete_indexs = []
+            for index, box in enumerate(gts):
+                length = ((box[3]-box[1])*(box[2]-box[0]))**0.5
+                if length < ig_length:
                     delete_indexs.append(index)
-            gts=np.delete(gts,delete_indexs,0)
+            gts = np.delete(gts, delete_indexs, 0)
         elif down == 2:
             ig_length = 24
             delete_indexs = []
             for index, box in enumerate(gts):
                 length = ((box[3]-box[1])*(box[2]-box[0]))**0.5
-                if length >ig_length:
+                if length > ig_length:
                     delete_indexs.append(index)
-            gts=np.delete(gts,delete_indexs,0)
+            gts = np.delete(gts, delete_indexs, 0)
         igs = np.copy(img_data['ignoreareas'])
         scale_map = np.zeros(
             (int(C.size_train[0] / down), int(C.size_train[1] / down), 2))
